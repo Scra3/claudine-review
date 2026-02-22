@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execSync } from "node:child_process";
@@ -39,27 +39,26 @@ describe("ReviewStore", () => {
     expect(existsSync(join(repoDir, ".claude", "review.json"))).toBe(true);
   });
 
-  it("submits review with comments", () => {
+  it("adds comments one by one", () => {
     const store = new ReviewStore(repoDir, "HEAD");
 
-    const result = store.submitReview([
-      { file: "index.html", line: 28, side: "new", body: "Fix title" },
-      { file: "styles.css", line: 10, side: "new", body: "Check color" },
-    ]);
+    const result1 = store.addComment({ file: "index.html", line: 28, side: "new", body: "Fix title" });
+    expect(result1.status).toBe("submitted");
+    expect(result1.submittedAt).toBeTruthy();
+    expect(result1.comments).toHaveLength(1);
+    expect(result1.comments[0].status).toBe("pending");
+    expect(result1.comments[0].file).toBe("index.html");
 
-    expect(result.status).toBe("submitted");
-    expect(result.submittedAt).toBeTruthy();
-    expect(result.comments).toHaveLength(2);
-    expect(result.comments[0].status).toBe("pending");
-    expect(result.comments[0].file).toBe("index.html");
-    expect(result.comments[1].file).toBe("styles.css");
+    const result2 = store.addComment({ file: "styles.css", line: 10, side: "new", body: "Check color" });
+    expect(result2.comments).toHaveLength(2);
+    expect(result2.comments[1].file).toBe("styles.css");
+    // submittedAt should not change after first comment
+    expect(result2.submittedAt).toBe(result1.submittedAt);
   });
 
   it("updates a comment status", () => {
     const store = new ReviewStore(repoDir, "HEAD");
-    store.submitReview([
-      { file: "index.html", line: 28, side: "new", body: "Fix title" },
-    ]);
+    store.addComment({ file: "index.html", line: 28, side: "new", body: "Fix title" });
 
     const comment = store.getComments()[0];
     const updated = store.updateComment(comment.id, { status: "resolved" });
@@ -71,9 +70,7 @@ describe("ReviewStore", () => {
 
   it("deletes a comment", () => {
     const store = new ReviewStore(repoDir, "HEAD");
-    store.submitReview([
-      { file: "index.html", line: 28, side: "new", body: "Fix title" },
-    ]);
+    store.addComment({ file: "index.html", line: 28, side: "new", body: "Fix title" });
 
     const comment = store.getComments()[0];
     const deleted = store.deleteComment(comment.id);
@@ -87,27 +84,127 @@ describe("ReviewStore", () => {
     expect(store.deleteComment("nonexistent")).toBe(false);
   });
 
-  it("atomic writes produce valid JSON", () => {
+  it("atomic writes produce valid JSON matching store data", () => {
     const store = new ReviewStore(repoDir, "HEAD");
-    store.submitReview([
-      { file: "test.ts", line: 1, side: "new", body: "test" },
-    ]);
+    store.addComment({ file: "test.ts", line: 1, side: "new", body: "test" });
 
     const raw = readFileSync(join(repoDir, ".claude", "review.json"), "utf-8");
-    expect(() => JSON.parse(raw)).not.toThrow();
+    const parsed = JSON.parse(raw);
+    expect(parsed.status).toBe("submitted");
+    expect(parsed.comments).toHaveLength(1);
+    expect(parsed.comments[0].body).toBe("test");
+    expect(parsed.comments[0].file).toBe("test.ts");
   });
 
   it("sets status to resolved when all comments resolved", () => {
     const store = new ReviewStore(repoDir, "HEAD");
-    store.submitReview([
-      { file: "a.ts", line: 1, side: "new", body: "one" },
-      { file: "b.ts", line: 2, side: "new", body: "two" },
-    ]);
+    store.addComment({ file: "a.ts", line: 1, side: "new", body: "one" });
+    store.addComment({ file: "b.ts", line: 2, side: "new", body: "two" });
 
     const comments = store.getComments();
     store.updateComment(comments[0].id, { status: "resolved" });
     store.updateComment(comments[1].id, { status: "resolved" });
 
     expect(store.getData().status).toBe("resolved");
+  });
+
+  // ── Reply / Thread ──────────────────────────────────────────────────
+
+  it("adds a reply to the thread with createdAt", () => {
+    const store = new ReviewStore(repoDir, "HEAD");
+    store.addComment({ file: "a.ts", line: 1, side: "new", body: "Needs fix" });
+
+    const id = store.getComments()[0].id;
+    const updated = store.updateComment(id, { reply: "Fixed in next commit" });
+
+    expect(updated).not.toBeNull();
+    expect(updated!.thread).toHaveLength(1);
+    expect(updated!.thread![0].author).toBe("user");
+    expect(updated!.thread![0].body).toBe("Fixed in next commit");
+    expect(updated!.thread![0].createdAt).toBeTruthy();
+    // Reply resets status to pending
+    expect(updated!.status).toBe("pending");
+  });
+
+  it("accumulates multiple replies in the thread", () => {
+    const store = new ReviewStore(repoDir, "HEAD");
+    store.addComment({ file: "a.ts", line: 1, side: "new", body: "Check this" });
+
+    const id = store.getComments()[0].id;
+    store.updateComment(id, { reply: "First reply" });
+    const updated = store.updateComment(id, { reply: "Second reply" });
+
+    expect(updated!.thread).toHaveLength(2);
+    expect(updated!.thread![0].body).toBe("First reply");
+    expect(updated!.thread![1].body).toBe("Second reply");
+  });
+
+  // ── Reopen ──────────────────────────────────────────────────────────
+
+  it("reopens a resolved comment", () => {
+    const store = new ReviewStore(repoDir, "HEAD");
+    store.addComment({ file: "a.ts", line: 1, side: "new", body: "Fix" });
+
+    const id = store.getComments()[0].id;
+    store.updateComment(id, { status: "resolved" });
+    expect(store.getComments()[0].status).toBe("resolved");
+    expect(store.getComments()[0].resolvedAt).toBeTruthy();
+
+    const reopened = store.updateComment(id, { status: "pending", resolvedAt: null });
+    expect(reopened!.status).toBe("pending");
+    expect(reopened!.resolvedAt).toBeNull();
+  });
+
+  // ── Corrupted file recovery ─────────────────────────────────────────
+
+  it("recovers from corrupted review.json by creating backup", () => {
+    // Create a valid store first
+    new ReviewStore(repoDir, "HEAD");
+    const reviewPath = join(repoDir, ".claude", "review.json");
+    expect(existsSync(reviewPath)).toBe(true);
+
+    // Corrupt the file
+    writeFileSync(reviewPath, "NOT VALID JSON {{{{");
+
+    // Loading should recover gracefully
+    const store2 = new ReviewStore(repoDir, "HEAD");
+    const data = store2.getData();
+    expect(data.version).toBe(1);
+    expect(data.status).toBe("draft");
+    expect(data.comments).toEqual([]);
+
+    // Backup file should exist
+    const claudeDir = join(repoDir, ".claude");
+    const files = execSync(`ls "${claudeDir}"`, { encoding: "utf-8" });
+    expect(files).toContain("review.json.backup.");
+  });
+
+  // ── External modification reload ────────────────────────────────────
+
+  it("picks up external modifications on next read", () => {
+    const store = new ReviewStore(repoDir, "HEAD");
+    store.addComment({ file: "a.ts", line: 1, side: "new", body: "Original" });
+
+    // Simulate external modification (e.g., Claude Code editing the file)
+    const reviewPath = join(repoDir, ".claude", "review.json");
+    const raw = JSON.parse(readFileSync(reviewPath, "utf-8"));
+    raw.comments[0].status = "resolved";
+    raw.comments[0].resolvedAt = new Date().toISOString();
+    raw.comments[0].response = "Done";
+    // Bump mtime by writing with a small delay
+    writeFileSync(reviewPath, JSON.stringify(raw, null, 2) + "\n");
+
+    // Store should pick up the change on next read
+    const comments = store.getComments();
+    expect(comments[0].status).toBe("resolved");
+    expect(comments[0].response).toBe("Done");
+  });
+
+  // ── Update non-existent comment ─────────────────────────────────────
+
+  it("returns null when updating non-existent comment", () => {
+    const store = new ReviewStore(repoDir, "HEAD");
+    const result = store.updateComment("nonexistent", { status: "resolved" });
+    expect(result).toBeNull();
   });
 });

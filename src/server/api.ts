@@ -1,9 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { timingSafeEqual } from "node:crypto";
 import { getDiff, getFileContent } from "./git.js";
 import { ReviewStore } from "./store.js";
 import { addSSEClient, broadcastUpdate } from "./sse.js";
 import {
-  SubmitReviewSchema,
+  AddCommentSchema,
   UpdateCommentSchema,
 } from "../shared/types.js";
 
@@ -12,6 +13,7 @@ export interface ApiContext {
   repoRoot: string;
   ref: string;
   token: string;
+  port: number;
 }
 
 function parseUrl(req: IncomingMessage): URL {
@@ -27,17 +29,27 @@ function error(res: ServerResponse, message: string, status = 400): void {
   json(res, { error: message }, status);
 }
 
-async function readBody(req: IncomingMessage): Promise<string> {
+async function readBody(req: IncomingMessage, maxBytes = 1_048_576): Promise<string> {
   const chunks: Buffer[] = [];
+  let totalSize = 0;
   for await (const chunk of req) {
-    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+    const buf = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+    totalSize += buf.length;
+    if (totalSize > maxBytes) {
+      throw new Error("Request body too large");
+    }
+    chunks.push(buf);
   }
   return Buffer.concat(chunks).toString("utf-8");
 }
 
 function checkToken(url: URL, ctx: ApiContext, res: ServerResponse): boolean {
-  const t = url.searchParams.get("token");
-  if (t !== ctx.token) {
+  const t = url.searchParams.get("token") ?? "";
+  const expected = ctx.token;
+  if (
+    t.length !== expected.length ||
+    !timingSafeEqual(Buffer.from(t), Buffer.from(expected))
+  ) {
     error(res, "Unauthorized", 401);
     return false;
   }
@@ -53,25 +65,25 @@ export async function handleApiRequest(
   const path = url.pathname;
   const method = req.method ?? "GET";
 
-  // CORS headers
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  if (path.startsWith("/api/") || path === "/sse") {
+    const origin = `http://127.0.0.1:${ctx.port}`;
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  if (method === "OPTIONS") {
-    res.writeHead(204);
-    res.end();
-    return true;
+    if (method === "OPTIONS") {
+      res.writeHead(204);
+      res.end();
+      return true;
+    }
   }
 
-  // SSE endpoint
   if (path === "/sse" && method === "GET") {
     if (!checkToken(url, ctx, res)) return true;
     addSSEClient(res);
     return true;
   }
 
-  // API routes
   if (!path.startsWith("/api/")) return false;
 
   if (!checkToken(url, ctx, res)) return true;
@@ -116,52 +128,64 @@ export async function handleApiRequest(
     return true;
   }
 
-  // POST /api/comments — batch submit drafts
+  // POST /api/comments — add a single comment
   if (path === "/api/comments" && method === "POST") {
+    let parsed;
     try {
       const body = await readBody(req);
-      const parsed = SubmitReviewSchema.parse(JSON.parse(body));
-      const updated = ctx.store.submitReview(parsed.comments);
+      parsed = AddCommentSchema.parse(JSON.parse(body));
+    } catch (err) {
+      error(res, `Invalid request: ${err}`);
+      return true;
+    }
+    try {
+      const updated = ctx.store.addComment(parsed);
       broadcastUpdate(updated);
       json(res, updated, 201);
     } catch (err) {
-      error(res, `Invalid request: ${err}`);
+      error(res, `Server error: ${err}`, 500);
     }
     return true;
   }
 
-  // PATCH /api/comments/:id
-  const patchMatch = path.match(/^\/api\/comments\/([a-zA-Z0-9_-]+)$/);
-  if (patchMatch && method === "PATCH") {
-    try {
-      const body = await readBody(req);
-      const patch = UpdateCommentSchema.parse(JSON.parse(body));
-      const comment = ctx.store.updateComment(patchMatch[1], patch);
-      if (!comment) {
+  // PATCH|DELETE /api/comments/:id
+  const commentIdMatch = path.match(/^\/api\/comments\/([a-zA-Z0-9_-]+)$/);
+  if (commentIdMatch) {
+    const commentId = commentIdMatch[1];
+
+    if (method === "PATCH") {
+      let patch;
+      try {
+        const body = await readBody(req);
+        patch = UpdateCommentSchema.parse(JSON.parse(body));
+      } catch (err) {
+        error(res, `Invalid request: ${err}`);
+        return true;
+      }
+      try {
+        const comment = ctx.store.updateComment(commentId, patch);
+        if (!comment) {
+          error(res, "Comment not found", 404);
+          return true;
+        }
+        broadcastUpdate(ctx.store.getData());
+        json(res, comment);
+      } catch (err) {
+        error(res, `Server error: ${err}`, 500);
+      }
+      return true;
+    }
+
+    if (method === "DELETE") {
+      const deleted = ctx.store.deleteComment(commentId);
+      if (!deleted) {
         error(res, "Comment not found", 404);
         return true;
       }
-      const updated = ctx.store.getData();
-      broadcastUpdate(updated);
-      json(res, comment);
-    } catch (err) {
-      error(res, `Invalid request: ${err}`);
-    }
-    return true;
-  }
-
-  // DELETE /api/comments/:id
-  const deleteMatch = path.match(/^\/api\/comments\/([a-zA-Z0-9_-]+)$/);
-  if (deleteMatch && method === "DELETE") {
-    const deleted = ctx.store.deleteComment(deleteMatch[1]);
-    if (!deleted) {
-      error(res, "Comment not found", 404);
+      broadcastUpdate(ctx.store.getData());
+      json(res, { ok: true });
       return true;
     }
-    const updated = ctx.store.getData();
-    broadcastUpdate(updated);
-    json(res, { ok: true });
-    return true;
   }
 
   return false;

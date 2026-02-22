@@ -4,24 +4,20 @@ import { useComments } from "./hooks/useComments";
 import { ReviewHeader } from "./components/ReviewHeader";
 import { FileList } from "./components/FileList";
 import { DiffView } from "./components/DiffView";
-import type { DiffFile } from "../shared/types";
+import { getFileName } from "./utils";
+import { storeTokenFromUrl } from "./api";
 import "./styles.css";
 
-function getFileName(file: DiffFile): string {
-  return file.to !== "/dev/null" ? file.to : file.from;
-}
+storeTokenFromUrl();
 
 export default function App() {
   const { diff, loading: diffLoading, error: diffError, diffChanged, notifyDiffChanged, refreshDiff } = useDiff();
   const {
     reviewData,
     serverComments,
-    drafts,
     loading: commentsLoading,
-    addDraft,
-    removeDraft,
-    updateDraft,
-    submitReview,
+    error: commentsError,
+    saveComment,
     resolveComment,
     reopenComment,
     replyToComment,
@@ -78,21 +74,11 @@ export default function App() {
           break;
         }
       }
-
-      // ⌘+Shift+Enter: submit review
-      if (
-        e.key === "Enter" &&
-        (e.metaKey || e.ctrlKey) &&
-        e.shiftKey
-      ) {
-        e.preventDefault();
-        submitReview();
-      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [diff, selectedFile, submitReview]);
+  }, [diff, selectedFile]);
 
   if (diffLoading || commentsLoading) {
     return (
@@ -134,8 +120,6 @@ export default function App() {
         fileCount={diff.files.length}
         totalAdditions={diff.totalAdditions}
         totalDeletions={diff.totalDeletions}
-        draftCount={drafts.length}
-        onSubmit={submitReview}
       />
       {diffChanged && (
         <div className="diff-changed-banner">
@@ -151,7 +135,6 @@ export default function App() {
           selectedFile={selectedFile}
           onSelectFile={setSelectedFile}
           comments={serverComments}
-          drafts={drafts}
           viewedFiles={viewedFiles}
           filter={filter}
           onFilterChange={setFilter}
@@ -162,10 +145,7 @@ export default function App() {
             comments={serverComments.filter(
               (c) => c.file === selectedFile,
             )}
-            drafts={drafts.filter((d) => d.file === selectedFile)}
-            onAddDraft={addDraft}
-            onRemoveDraft={removeDraft}
-            onUpdateDraft={updateDraft}
+            onSaveComment={saveComment}
             onResolve={resolveComment}
             onReopen={reopenComment}
             onReply={replyToComment}
@@ -175,12 +155,14 @@ export default function App() {
           />
         </main>
       </div>
+      {(diffError || commentsError) && (
+        <div className="error-banner">
+          {diffError || commentsError}
+        </div>
+      )}
       <footer className="app__footer">
         <span>j/k: files</span>
-        <span>n/p: comments</span>
-        <span>c: comment</span>
-        <span>⌘Enter: save</span>
-        <span>⌘⇧Enter: submit</span>
+        <span>⌘Enter: comment</span>
         <span>Esc: cancel</span>
       </footer>
     </div>

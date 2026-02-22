@@ -16,6 +16,18 @@ export class ReviewStore {
     this.data = this.load(ref);
   }
 
+  private static emptyReview(ref: string): ReviewData {
+    return {
+      version: 1,
+      round: 1,
+      status: "draft",
+      ref,
+      metadata: {},
+      submittedAt: null,
+      comments: [],
+    };
+  }
+
   private load(ref: string): ReviewData {
     const dir = dirname(this.filePath);
     if (!existsSync(dir)) {
@@ -23,15 +35,7 @@ export class ReviewStore {
     }
 
     if (!existsSync(this.filePath)) {
-      const initial: ReviewData = {
-        version: 1,
-        round: 1,
-        status: "draft",
-        ref,
-        metadata: {},
-        submittedAt: null,
-        comments: [],
-      };
+      const initial = ReviewStore.emptyReview(ref);
       this.writeAtomic(initial);
       return initial;
     }
@@ -43,32 +47,29 @@ export class ReviewStore {
       this.lastMtime = statSync(this.filePath).mtimeMs;
       return result;
     } catch (err) {
-      // Corrupted JSON — backup and create fresh
+      // Failed to read or validate review.json — backup and create fresh
       console.warn("Warning: review.json is corrupted, creating backup...");
       const backupPath = this.filePath + ".backup." + Date.now();
       try {
         renameSync(this.filePath, backupPath);
         console.warn(`  Backed up to ${backupPath}`);
-      } catch { /* ignore */ }
-      const fresh: ReviewData = {
-        version: 1,
-        round: 1,
-        status: "draft",
-        ref,
-        metadata: {},
-        submittedAt: null,
-        comments: [],
-      };
+      } catch (backupErr) {
+        console.error(`CRITICAL: Failed to back up corrupted review.json: ${backupErr}`);
+        console.error(`  The corrupted file will be overwritten. Data may be lost.`);
+      }
+      const fresh = ReviewStore.emptyReview(ref);
       this.writeAtomic(fresh);
       return fresh;
     }
   }
 
+  // Atomic write: write to temp file then rename to avoid partial reads
   private writeAtomic(data: ReviewData): void {
     const dir = dirname(this.filePath);
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
+    ReviewDataSchema.parse(data);
     const tmp = this.filePath + ".tmp." + process.pid;
     writeFileSync(tmp, JSON.stringify(data, null, 2) + "\n", "utf-8");
     renameSync(tmp, this.filePath);
@@ -76,6 +77,7 @@ export class ReviewStore {
     this.data = data;
   }
 
+  // Optimistic reload: check mtime to pick up external modifications (e.g., by Claude Code)
   private reloadIfChanged(): void {
     try {
       const stat = statSync(this.filePath);
@@ -85,7 +87,9 @@ export class ReviewStore {
         this.data = parsed;
         this.lastMtime = stat.mtimeMs;
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error(`Failed to reload review.json: ${err}`);
+    }
   }
 
   getData(): ReviewData {
@@ -97,29 +101,30 @@ export class ReviewStore {
     return this.getData().comments;
   }
 
-  submitReview(drafts: CreateComment[]): ReviewData {
+  addComment(draft: CreateComment): ReviewData {
     this.reloadIfChanged();
 
     const now = new Date().toISOString();
-    const newComments: Comment[] = drafts.map((d) => ({
+    const newComment: Comment = {
       id: nanoid(8),
       type: "comment" as const,
-      file: d.file,
-      line: d.line,
-      endLine: d.endLine ?? d.line,
-      side: d.side,
-      body: d.body,
+      file: draft.file,
+      line: draft.line,
+      endLine: draft.endLine ?? draft.line,
+      side: draft.side,
+      body: draft.body,
       status: "pending" as const,
+      response: null,
       thread: [],
       createdAt: now,
       resolvedAt: null,
-    }));
+    };
 
     const updated: ReviewData = {
       ...this.data,
       status: "submitted",
-      submittedAt: now,
-      comments: [...this.data.comments, ...newComments],
+      submittedAt: this.data.submittedAt ?? now,
+      comments: [...this.data.comments, newComment],
     };
 
     this.writeAtomic(updated);
@@ -132,12 +137,15 @@ export class ReviewStore {
     if (idx === -1) return null;
 
     const comment = { ...this.data.comments[idx] };
-    if (patch.reply) {
-      comment.thread = [...(comment.thread ?? []), { author: "user" as const, body: patch.reply }];
+    if (patch.reply !== undefined) {
+      comment.thread = [
+        ...(comment.thread ?? []),
+        { author: "user" as const, body: patch.reply, createdAt: new Date().toISOString() },
+      ];
       comment.status = "pending";
     }
-    if (patch.status) comment.status = patch.status;
-    if (patch.body) comment.body = patch.body;
+    if (patch.status !== undefined) comment.status = patch.status;
+    if (patch.body !== undefined) comment.body = patch.body;
     if (patch.resolvedAt !== undefined) comment.resolvedAt = patch.resolvedAt;
     if (patch.status === "resolved" && !comment.resolvedAt) {
       comment.resolvedAt = new Date().toISOString();

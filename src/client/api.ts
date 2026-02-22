@@ -6,8 +6,20 @@ import type {
 } from "../shared/types";
 
 function getToken(): string {
+  return (
+    sessionStorage.getItem("claude-review-token") ??
+    new URLSearchParams(window.location.search).get("token") ??
+    ""
+  );
+}
+
+export function storeTokenFromUrl(): void {
   const params = new URLSearchParams(window.location.search);
-  return params.get("token") ?? "";
+  const token = params.get("token");
+  if (token) {
+    sessionStorage.setItem("claude-review-token", token);
+    history.replaceState(null, "", window.location.pathname);
+  }
 }
 
 function apiUrl(path: string, params?: Record<string, string>): string {
@@ -41,15 +53,15 @@ export async function fetchComments(): Promise<ReviewData> {
   return res.json();
 }
 
-export async function submitReview(
-  comments: CreateComment[],
+export async function addComment(
+  comment: CreateComment,
 ): Promise<ReviewData> {
   const res = await fetch(apiUrl("/api/comments"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ comments }),
+    body: JSON.stringify(comment),
   });
-  if (!res.ok) throw new Error(`Failed to submit review: ${res.statusText}`);
+  if (!res.ok) throw new Error(`Failed to add comment: ${res.statusText}`);
   return res.json();
 }
 
@@ -63,15 +75,6 @@ export async function updateComment(
     body: JSON.stringify(patch),
   });
   if (!res.ok) throw new Error(`Failed to update comment: ${res.statusText}`);
-}
-
-export async function replyToComment(id: string, reply: string): Promise<void> {
-  const res = await fetch(apiUrl(`/api/comments/${id}`), {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ reply }),
-  });
-  if (!res.ok) throw new Error(`Failed to reply to comment: ${res.statusText}`);
 }
 
 export async function deleteComment(id: string): Promise<void> {
@@ -92,7 +95,9 @@ export function createSSEConnection(
     try {
       const data = JSON.parse(e.data);
       onUpdate(data);
-    } catch { /* ignore parse errors */ }
+    } catch (err) {
+      console.error("Failed to parse SSE comments-updated event:", err, "Raw data:", e.data);
+    }
   });
 
   source.addEventListener("diff-changed", () => {

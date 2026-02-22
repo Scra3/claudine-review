@@ -15,6 +15,7 @@ function checkGit(): void {
   } catch {
     console.error("Error: git is not installed or not in PATH.");
     process.exit(1);
+    throw new Error("unreachable");
   }
 }
 
@@ -26,19 +27,26 @@ function getRepoRoot(): string {
   } catch {
     console.error("Error: not inside a git repository.");
     process.exit(1);
+    throw new Error("unreachable");
   }
 }
 
-async function findAvailablePort(preferred: number): Promise<number> {
-  return new Promise((resolve) => {
+async function findAvailablePort(preferred: number, maxAttempts = 20): Promise<number> {
+  if (preferred > 65535 || maxAttempts <= 0) {
+    throw new Error("Could not find an available port");
+  }
+  return new Promise((resolve, reject) => {
     const server = createNetServer();
     server.listen(preferred, "127.0.0.1", () => {
       server.close(() => resolve(preferred));
     });
-    server.on("error", () => {
-      // Port busy, try next
-      console.log(`Port ${preferred} is busy, trying ${preferred + 1}...`);
-      resolve(findAvailablePort(preferred + 1));
+    server.on("error", (err: NodeJS.ErrnoException) => {
+      if (err.code === "EADDRINUSE") {
+        console.log(`Port ${preferred} is busy, trying ${preferred + 1}...`);
+        resolve(findAvailablePort(preferred + 1, maxAttempts - 1));
+      } else {
+        reject(new Error(`Cannot bind to port ${preferred}: ${err.message}`));
+      }
     });
   });
 }

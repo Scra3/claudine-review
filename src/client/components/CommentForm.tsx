@@ -36,7 +36,7 @@ export function CommentForm({
   return (
     <div className="comment-form">
       <div className="comment-form__header">
-        <span className="comment-form__badge">DRAFT</span>
+        <span className="comment-form__badge">COMMENT</span>
         <span className="comment-form__location">
           {file}:{line}
         </span>
@@ -59,7 +59,7 @@ export function CommentForm({
           onClick={() => body.trim() && onSave(body.trim())}
           disabled={!body.trim()}
         >
-          Save Draft
+          Comment
         </button>
       </div>
     </div>

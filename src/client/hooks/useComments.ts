@@ -2,25 +2,16 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { ReviewData, Comment, CreateComment } from "../../shared/types";
 import {
   fetchComments,
-  submitReview as apiSubmitReview,
+  addComment as apiAddComment,
   updateComment as apiUpdateComment,
-  replyToComment as apiReplyToComment,
   deleteComment as apiDeleteComment,
   createSSEConnection,
 } from "../api";
 
-export interface DraftComment {
-  file: string;
-  line: number;
-  endLine?: number;
-  side: "old" | "new";
-  body: string;
-}
-
 export function useComments(onDiffChanged?: () => void) {
   const [reviewData, setReviewData] = useState<ReviewData | null>(null);
-  const [drafts, setDrafts] = useState<DraftComment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const sseRef = useRef<EventSource | null>(null);
 
   // Load initial comments
@@ -30,7 +21,10 @@ export function useComments(onDiffChanged?: () => void) {
         setReviewData(data);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        setError(err.message);
+        setLoading(false);
+      });
   }, []);
 
   // SSE subscription
@@ -43,78 +37,58 @@ export function useComments(onDiffChanged?: () => void) {
     return () => sse.close();
   }, [onDiffChanged]);
 
-  const addDraft = useCallback(
-    (draft: DraftComment) => {
-      setDrafts((prev) => [...prev, draft]);
-    },
-    [],
-  );
-
-  const removeDraft = useCallback((index: number) => {
-    setDrafts((prev) => prev.filter((_, i) => i !== index));
+  const saveComment = useCallback(async (draft: CreateComment) => {
+    try {
+      const updated = await apiAddComment(draft);
+      setReviewData(updated);
+    } catch (err) {
+      setError(`Failed to save comment: ${(err as Error).message}`);
+    }
   }, []);
 
-  const updateDraft = useCallback(
-    (index: number, body: string) => {
-      setDrafts((prev) =>
-        prev.map((d, i) => (i === index ? { ...d, body } : d)),
-      );
-    },
-    [],
-  );
-
-  const submitReview = useCallback(async () => {
-    if (drafts.length === 0) return;
-    const comments: CreateComment[] = drafts.map((d) => ({
-      file: d.file,
-      line: d.line,
-      endLine: d.endLine,
-      side: d.side,
-      body: d.body,
-    }));
-    const updated = await apiSubmitReview(comments);
-    setReviewData(updated);
-    setDrafts([]);
-  }, [drafts]);
-
   const resolveComment = useCallback(async (id: string) => {
-    await apiUpdateComment(id, {
-      status: "resolved",
-      resolvedAt: new Date().toISOString(),
-    });
+    try {
+      await apiUpdateComment(id, {
+        status: "resolved",
+        resolvedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      setError(`Failed to resolve comment: ${(err as Error).message}`);
+    }
   }, []);
 
   const reopenComment = useCallback(async (id: string) => {
-    await apiUpdateComment(id, { status: "pending", resolvedAt: null });
+    try {
+      await apiUpdateComment(id, { status: "pending", resolvedAt: null });
+    } catch (err) {
+      setError(`Failed to reopen comment: ${(err as Error).message}`);
+    }
   }, []);
 
   const replyToComment = useCallback(async (id: string, reply: string) => {
-    await apiReplyToComment(id, reply);
+    try {
+      await apiUpdateComment(id, { reply });
+    } catch (err) {
+      setError(`Failed to reply to comment: ${(err as Error).message}`);
+    }
   }, []);
 
   const removeComment = useCallback(async (id: string) => {
-    await apiDeleteComment(id);
+    try {
+      await apiDeleteComment(id);
+    } catch (err) {
+      setError(`Failed to delete comment: ${(err as Error).message}`);
+    }
   }, []);
 
   const serverComments: Comment[] = reviewData?.comments ?? [];
-  const pendingCount = serverComments.filter(
-    (c) => c.status === "pending",
-  ).length;
-  const resolvedCount = serverComments.filter(
-    (c) => c.status === "resolved",
-  ).length;
 
   return {
     reviewData,
     serverComments,
-    drafts,
     loading,
-    pendingCount,
-    resolvedCount,
-    addDraft,
-    removeDraft,
-    updateDraft,
-    submitReview,
+    error,
+    saveComment,
     resolveComment,
     reopenComment,
     replyToComment,

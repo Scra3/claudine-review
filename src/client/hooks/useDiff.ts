@@ -28,7 +28,10 @@ export function useDiff() {
     setDiffChanged(false);
     fetchDiff()
       .then((data) => setDiff(data))
-      .catch(() => {});
+      .catch((err) => {
+        setError(`Failed to refresh diff: ${err.message}`);
+        setDiffChanged(true);
+      });
   }, []);
 
   return { diff, loading, error, diffChanged, notifyDiffChanged, refreshDiff };

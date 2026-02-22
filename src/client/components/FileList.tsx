@@ -1,27 +1,14 @@
-import React from "react";
 import type { DiffFile, Comment } from "../../shared/types";
-import type { DraftComment } from "../hooks/useComments";
+import { getFileName, getFileStatus } from "../utils";
 
 interface Props {
   files: DiffFile[];
   selectedFile: string | null;
   onSelectFile: (path: string) => void;
   comments: Comment[];
-  drafts: DraftComment[];
   viewedFiles: Set<string>;
   filter: string;
   onFilterChange: (v: string) => void;
-}
-
-function getFileName(file: DiffFile): string {
-  return file.to !== "/dev/null" ? file.to : file.from;
-}
-
-function getStatusIcon(file: DiffFile): string {
-  if (file.new) return "A";
-  if (file.deleted) return "D";
-  if (file.renamed) return "R";
-  return "M";
 }
 
 export function FileList({
@@ -29,7 +16,6 @@ export function FileList({
   selectedFile,
   onSelectFile,
   comments,
-  drafts,
   viewedFiles,
   filter,
   onFilterChange,
@@ -56,9 +42,7 @@ export function FileList({
       <ul className="file-list__items">
         {filtered.map((file) => {
           const name = getFileName(file);
-          const commentCount =
-            comments.filter((c) => c.file === name).length +
-            drafts.filter((d) => d.file === name).length;
+          const commentCount = comments.filter((c) => c.file === name).length;
           const isSelected = name === selectedFile;
 
           return (
@@ -67,8 +51,8 @@ export function FileList({
               className={`file-list__item ${isSelected ? "file-list__item--selected" : ""}`}
               onClick={() => onSelectFile(name)}
             >
-              <span className={`file-list__status file-list__status--${getStatusIcon(file).toLowerCase()}`}>
-                {getStatusIcon(file)}
+              <span className={`file-list__status file-list__status--${getFileStatus(file).toLowerCase()}`}>
+                {getFileStatus(file)}
               </span>
               <span className="file-list__name" title={name}>
                 {name.split("/").pop()}

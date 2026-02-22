@@ -1,16 +1,13 @@
 import React, { useState, useCallback, useMemo } from "react";
-import type { DiffFile, DiffHunk, Comment } from "../../shared/types";
-import type { DraftComment } from "../hooks/useComments";
+import type { DiffFile, DiffHunk, Comment, CreateComment } from "../../shared/types";
 import { CommentForm } from "./CommentForm";
-import { ServerCommentBubble, DraftBubble } from "./CommentBubble";
+import { ServerCommentBubble } from "./CommentBubble";
+import { getFileName, getFileStatus } from "../utils";
 
 interface Props {
   file: DiffFile | null;
   comments: Comment[];
-  drafts: DraftComment[];
-  onAddDraft: (draft: DraftComment) => void;
-  onRemoveDraft: (index: number) => void;
-  onUpdateDraft: (index: number, body: string) => void;
+  onSaveComment: (comment: CreateComment) => void;
   onResolve: (id: string) => void;
   onReopen: (id: string) => void;
   onReply: (id: string, reply: string) => void;
@@ -25,6 +22,13 @@ interface DiffLine {
   oldLine?: number;
   newLine?: number;
 }
+
+const LINE_PREFIX: Record<DiffLine["type"], string> = {
+  add: "+",
+  del: "-",
+  normal: " ",
+  "hunk-header": "",
+};
 
 /** Unique key for a commentable line: "old:42" or "new:42" */
 function lineKey(line: DiffLine): string {
@@ -58,10 +62,7 @@ function buildLines(chunks: DiffHunk[]): DiffLine[] {
 export function DiffView({
   file,
   comments,
-  drafts,
-  onAddDraft,
-  onRemoveDraft,
-  onUpdateDraft,
+  onSaveComment,
   onResolve,
   onReopen,
   onReply,
@@ -73,18 +74,18 @@ export function DiffView({
   const [commentingKey, setCommentingKey] = useState<string | null>(null);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
-  const fileName = file ? (file.to !== "/dev/null" ? file.to : file.from) : "";
+  const fileName = file ? getFileName(file) : "";
 
   const lines = useMemo(
     () => (file ? buildLines(file.chunks) : []),
     [file],
   );
 
-  const handleSaveDraft = useCallback(
+  const handleSaveComment = useCallback(
     (body: string) => {
       if (!commentingKey || !fileName) return;
       const [side, num] = commentingKey.split(":");
-      onAddDraft({
+      onSaveComment({
         file: fileName,
         line: parseInt(num, 10),
         side: side as "old" | "new",
@@ -92,15 +93,12 @@ export function DiffView({
       });
       setCommentingKey(null);
     },
-    [commentingKey, fileName, onAddDraft],
+    [commentingKey, fileName, onSaveComment],
   );
 
   const fileComments = comments.filter((c) => c.file === fileName);
-  const fileDrafts = drafts
-    .map((d, i) => ({ ...d, originalIndex: i }))
-    .filter((d) => d.file === fileName);
 
-  // Index comments/drafts by key ("old:42" or "new:42")
+  // Index comments by key ("old:42" or "new:42")
   const commentsByKey = useMemo(() => {
     const map = new Map<string, Comment[]>();
     for (const c of fileComments) {
@@ -111,17 +109,6 @@ export function DiffView({
     }
     return map;
   }, [fileComments]);
-
-  const draftsByKey = useMemo(() => {
-    const map = new Map<string, (DraftComment & { originalIndex: number })[]>();
-    for (const d of fileDrafts) {
-      const key = `${d.side}:${d.line}`;
-      const arr = map.get(key) ?? [];
-      arr.push(d);
-      map.set(key, arr);
-    }
-    return map;
-  }, [fileDrafts]);
 
   if (!file) {
     return (
@@ -136,9 +123,8 @@ export function DiffView({
 
   const renderInlineComments = (key: string, displayLine: number) => {
     const lc = commentsByKey.get(key) ?? [];
-    const ld = draftsByKey.get(key) ?? [];
     const isCommenting = commentingKey === key;
-    if (!lc.length && !ld.length && !isCommenting) return null;
+    if (!lc.length && !isCommenting) return null;
 
     return (
       <tr className="diff-comment-row">
@@ -154,20 +140,11 @@ export function DiffView({
                 onDelete={onDelete}
               />
             ))}
-            {ld.map((d) => (
-              <DraftBubble
-                key={`draft-${d.originalIndex}`}
-                draft={d}
-                index={d.originalIndex}
-                onUpdate={onUpdateDraft}
-                onRemove={onRemoveDraft}
-              />
-            ))}
             {isCommenting && (
               <CommentForm
                 file={fileName}
                 line={displayLine}
-                onSave={handleSaveDraft}
+                onSave={handleSaveComment}
                 onCancel={() => setCommentingKey(null)}
               />
             )}
@@ -182,7 +159,7 @@ export function DiffView({
       <div className="diff-view__header">
         <span className="diff-view__filename">{fileName}</span>
         <span className="diff-view__badge">
-          {file.new ? "A" : file.deleted ? "D" : file.renamed ? "R" : "M"}
+          {getFileStatus(file)}
         </span>
         <span className="diff-view__stat diff-view__stat--add">
           +{file.additions}
@@ -214,7 +191,7 @@ export function DiffView({
               const key = lineKey(line);
               const displayLine = line.newLine ?? line.oldLine ?? 0;
               const isHovered = hoveredIdx === i;
-              const hasStuff = commentsByKey.has(key) || draftsByKey.has(key);
+              const hasStuff = commentsByKey.has(key);
 
               // Which gutter gets the "+" button?
               const isDel = line.type === "del";
@@ -259,7 +236,7 @@ export function DiffView({
                     {/* Code */}
                     <td className={`diff-code diff-code--${line.type}`}>
                       <span className="diff-code__prefix">
-                        {line.type === "add" ? "+" : line.type === "del" ? "-" : " "}
+                        {LINE_PREFIX[line.type]}
                       </span>
                       <span className="diff-code__content">{line.content}</span>
                     </td>

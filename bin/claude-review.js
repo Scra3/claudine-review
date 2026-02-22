@@ -20,6 +20,10 @@ for (let i = 0; i < args.length; i++) {
     ref = args[++i];
   } else if (args[i] === "--port" && args[i + 1]) {
     port = parseInt(args[++i], 10);
+    if (isNaN(port) || port < 1 || port > 65535) {
+      console.error(`Error: invalid port number '${args[i]}'`);
+      process.exit(1);
+    }
   } else if (args[i] === "--help" || args[i] === "-h") {
     console.log(`
   claude-review — Local code review for Claude Code
@@ -41,15 +45,13 @@ for (let i = 0; i < args.length; i++) {
 }
 
 function init() {
-  // Check we're in a git repo
+  let root;
   try {
-    execSync("git rev-parse --show-toplevel", { stdio: "ignore" });
+    root = execSync("git rev-parse --show-toplevel", { encoding: "utf-8" }).trim();
   } catch {
     console.error("Error: not inside a git repository.");
     process.exit(1);
   }
-
-  const root = execSync("git rev-parse --show-toplevel", { encoding: "utf-8" }).trim();
   const destDir = join(root, ".claude", "commands");
   const destFile = join(destDir, "apply-review.md");
 
@@ -81,21 +83,33 @@ function init() {
 }
 
 // Normal run: start the server
-const { startServer } = await import("../dist/server/index.js");
+let startServer;
+try {
+  ({ startServer } = await import("../dist/server/index.js"));
+} catch (err) {
+  console.error("Error: Could not load the server module.");
+  console.error("  Have you run 'npm run build' first?");
+  console.error(`  ${err.message}`);
+  process.exit(1);
+}
 
-startServer({ ref, port }).then(({ url }) => {
-  import("node:child_process").then(({ exec }) => {
-    const cmd =
-      process.platform === "darwin"
-        ? "open"
-        : process.platform === "win32"
-          ? "start"
-          : "xdg-open";
-    exec(`${cmd} "${url}"`);
-  });
+const OPEN_COMMANDS = { darwin: "open", win32: "start" };
 
-  process.on("SIGINT", () => {
-    console.log("\nShutting down...");
-    process.exit(0);
+startServer({ ref, port })
+  .then(({ url }) => {
+    import("node:child_process").then(({ exec }) => {
+      const cmd = OPEN_COMMANDS[process.platform] ?? "xdg-open";
+      exec(`${cmd} "${url}"`, (err) => {
+        if (err) console.warn(`Could not open browser automatically: ${err.message}`);
+      });
+    });
+
+    process.on("SIGINT", () => {
+      console.log("\nShutting down...");
+      process.exit(0);
+    });
+  })
+  .catch((err) => {
+    console.error(`Failed to start server: ${err.message}`);
+    process.exit(1);
   });
-});

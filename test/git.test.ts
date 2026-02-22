@@ -48,6 +48,8 @@ describe("git", () => {
       const result = getDiff(repoDir, "HEAD");
       const file = result.files.find((f) => f.to === "new.txt");
       expect(file).toBeDefined();
+      expect(file!.new).toBe(true);
+      expect(file!.additions).toBeGreaterThan(0);
     });
   });
 
@@ -55,6 +57,20 @@ describe("git", () => {
     it("reads file from working tree", () => {
       const content = getFileContent(repoDir, "hello.txt");
       expect(content).toBe("Hello World\n");
+    });
+
+    it("falls back to git when file is deleted from disk", () => {
+      // hello.txt is committed with "Hello World\n"
+      // Delete it from the working tree
+      rmSync(join(repoDir, "hello.txt"));
+
+      // Should fall back to git show HEAD:hello.txt
+      const content = getFileContent(repoDir, "hello.txt");
+      expect(content).toBe("Hello World\n");
+    });
+
+    it("throws for file that doesn't exist in working tree or git", () => {
+      expect(() => getFileContent(repoDir, "never-existed.txt")).toThrow();
     });
 
     it("rejects path traversal", () => {

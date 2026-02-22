@@ -1,4 +1,3 @@
-import React from "react";
 import type { ReviewData } from "../../shared/types";
 
 interface Props {
@@ -6,8 +5,6 @@ interface Props {
   fileCount: number;
   totalAdditions: number;
   totalDeletions: number;
-  draftCount: number;
-  onSubmit: () => void;
 }
 
 export function ReviewHeader({
@@ -15,8 +12,6 @@ export function ReviewHeader({
   fileCount,
   totalAdditions,
   totalDeletions,
-  draftCount,
-  onSubmit,
 }: Props) {
   const round = reviewData?.round ?? 1;
 
@@ -32,20 +27,6 @@ export function ReviewHeader({
         <span className="review-header__stat review-header__stat--del">
           -{totalDeletions}
         </span>
-        {draftCount > 0 && (
-          <span className="review-header__stat review-header__stat--draft">
-            {draftCount} draft{draftCount > 1 ? "s" : ""}
-          </span>
-        )}
-      </div>
-      <div className="review-header__right">
-        <button
-          className="review-header__submit"
-          onClick={onSubmit}
-          disabled={draftCount === 0}
-        >
-          Submit Review
-        </button>
       </div>
     </header>
   );

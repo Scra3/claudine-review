@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import type { Comment } from "../../shared/types";
-import type { DraftComment } from "../hooks/useComments";
 
 interface ServerCommentProps {
   comment: Comment;
@@ -50,35 +49,20 @@ export function ServerCommentBubble({
         </span>
       </div>
       <div className="comment-bubble__body">{comment.body}</div>
-      {comment.thread.map((entry, i) => (
-        <div
-          key={i}
-          className={
-            entry.author === "ai"
-              ? "comment-bubble__response"
-              : "comment-bubble__user-reply"
-          }
-        >
-          <div
-            className={
-              entry.author === "ai"
-                ? "comment-bubble__response-label"
-                : "comment-bubble__user-reply-label"
-            }
-          >
-            {entry.author === "ai" ? "Claude" : "You"}
+      {comment.thread.map((entry, i) => {
+        const isAI = entry.author === "ai";
+        const prefix = isAI ? "response" : "user-reply";
+        return (
+          <div key={i} className={`comment-bubble__${prefix}`}>
+            <div className={`comment-bubble__${prefix}-label`}>
+              {isAI ? "Claude" : "You"}
+            </div>
+            <div className={`comment-bubble__${prefix}-body`}>
+              {entry.body}
+            </div>
           </div>
-          <div
-            className={
-              entry.author === "ai"
-                ? "comment-bubble__response-body"
-                : "comment-bubble__user-reply-body"
-            }
-          >
-            {entry.body}
-          </div>
-        </div>
-      ))}
+        );
+      })}
       {replying && (
         <div className="comment-bubble__reply-form">
           <textarea
@@ -144,31 +128,3 @@ export function ServerCommentBubble({
   );
 }
 
-interface DraftBubbleProps {
-  draft: DraftComment;
-  index: number;
-  onUpdate: (index: number, body: string) => void;
-  onRemove: (index: number) => void;
-}
-
-export function DraftBubble({ draft, index, onUpdate, onRemove }: DraftBubbleProps) {
-  return (
-    <div className="comment-bubble comment-bubble--draft">
-      <div className="comment-bubble__header">
-        <span className="comment-bubble__badge">DRAFT</span>
-        <span className="comment-bubble__location">
-          {draft.file}:{draft.line}
-        </span>
-      </div>
-      <div className="comment-bubble__body">{draft.body}</div>
-      <div className="comment-bubble__actions">
-        <button
-          className="comment-bubble__btn comment-bubble__btn--delete"
-          onClick={() => onRemove(index)}
-        >
-          Remove
-        </button>
-      </div>
-    </div>
-  );
-}

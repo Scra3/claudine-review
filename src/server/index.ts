@@ -35,35 +35,39 @@ export async function startServer(opts: {
     repoRoot: config.repoRoot,
     ref: config.ref,
     token: config.token,
+    port: config.port,
   };
 
-  // Watch for external changes
+  // Watch review.json for external modifications (e.g., by Claude Code) and broadcast to clients
   store.startWatching(() => {
     broadcastUpdate(store.getData());
   });
 
   // Watch repo files for changes and notify clients
-  const diff = getDiff(config.repoRoot, config.ref);
-  const filesToWatch = diff.files
-    .map((f) => (f.to !== "/dev/null" ? f.to : f.from))
-    .map((f) => join(config.repoRoot, f));
-
   let fileWatcher: ReturnType<typeof watch> | null = null;
-  if (filesToWatch.length > 0) {
-    fileWatcher = watch(filesToWatch, {
-      ignoreInitial: true,
-      awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
-    });
-    fileWatcher.on("change", () => {
-      broadcastDiffChanged();
-    });
+  try {
+    const diff = getDiff(config.repoRoot, config.ref);
+    const filesToWatch = diff.files
+      .map((f) => (f.to !== "/dev/null" ? f.to : f.from))
+      .map((f) => join(config.repoRoot, f));
+
+    if (filesToWatch.length > 0) {
+      fileWatcher = watch(filesToWatch, {
+        ignoreInitial: true,
+        awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
+      });
+      fileWatcher.on("change", () => {
+        broadcastDiffChanged();
+      });
+    }
+  } catch (err) {
+    console.warn(`Could not set up file watching: ${err}`);
   }
 
-  // Static file directory (sibling to server/)
+  // Client build output directory — must match vite.config.ts outDir relative to tsup outDir
   const clientDir = join(__dirname, "..", "client");
 
   const server = createServer(async (req, res) => {
-    // Try API first
     const handled = await handleApiRequest(req, res, ctx);
     if (handled) return;
 
@@ -89,7 +93,8 @@ export async function startServer(opts: {
       const content = readFileSync(filePath);
       res.writeHead(200, { "Content-Type": mime });
       res.end(content);
-    } catch {
+    } catch (err) {
+      console.error(`Failed to serve static file ${filePath}:`, err);
       res.writeHead(500);
       res.end("Internal Server Error");
     }
@@ -117,4 +122,3 @@ export async function startServer(opts: {
     });
   });
 }
-
