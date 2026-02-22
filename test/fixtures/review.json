@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "round": 1,
+  "status": "submitted",
+  "ref": "HEAD",
+  "metadata": {},
+  "submittedAt": "2026-02-22T15:31:00Z",
+  "comments": [
+    {
+      "id": "test123",
+      "type": "comment",
+      "file": "index.html",
+      "line": 28,
+      "side": "new",
+      "body": "Titre trop long pour les SERP",
+      "status": "pending",
+      "createdAt": "2026-02-22T15:30:00Z",
+      "resolvedAt": null
+    }
+  ]
+}

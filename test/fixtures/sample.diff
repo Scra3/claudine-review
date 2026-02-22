@@ -1,0 +1,13 @@
+diff --git a/index.html b/index.html
+index abc1234..def5678 100644
+--- a/index.html
++++ b/index.html
+@@ -26,9 +26,9 @@
+     <link rel="icon" href="/favicon.ico">
+
+-    <title>Archidot | Architecte HMONP à Bordeaux</title>
+-    <meta name="description" content="Cabinet d'architecture à Bordeaux">
++    <title>Archidot | Architecte rénovation Lignan-de-Bordeaux</title>
++    <meta name="description" content="Cabinet d'architecture à Lignan-de-Bordeaux">
+
+     <link rel="stylesheet" href="/styles.css">
