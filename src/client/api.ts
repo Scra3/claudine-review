@@ -3,6 +3,7 @@ import type {
   ReviewData,
   CreateComment,
   UpdateComment,
+  Summary,
 } from "../shared/types";
 
 function getToken(): string {
@@ -82,6 +83,16 @@ export async function deleteComment(id: string): Promise<void> {
     method: "DELETE",
   });
   if (!res.ok) throw new Error(`Failed to delete comment: ${res.statusText}`);
+}
+
+export async function setSummary(summary: Summary): Promise<ReviewData> {
+  const res = await fetch(apiUrl("/api/summary"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(summary),
+  });
+  if (!res.ok) throw new Error(`Failed to set summary: ${res.statusText}`);
+  return res.json();
 }
 
 export function createSSEConnection(

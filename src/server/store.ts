@@ -1,8 +1,8 @@
-import { readFileSync, writeFileSync, mkdirSync, renameSync, existsSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, renameSync, unlinkSync, existsSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { watch } from "chokidar";
 import { nanoid } from "nanoid";
-import { ReviewDataSchema, type ReviewData, type Comment, type CreateComment, type UpdateComment } from "../shared/types.js";
+import { ReviewDataSchema, type ReviewData, type Comment, type CreateComment, type UpdateComment, type Summary } from "../shared/types.js";
 
 export class ReviewStore {
   private filePath: string;
@@ -25,6 +25,7 @@ export class ReviewStore {
       metadata: {},
       submittedAt: null,
       comments: [],
+      summary: null,
     };
   }
 
@@ -71,29 +72,35 @@ export class ReviewStore {
     }
     ReviewDataSchema.parse(data);
     const tmp = this.filePath + ".tmp." + process.pid;
-    writeFileSync(tmp, JSON.stringify(data, null, 2) + "\n", "utf-8");
-    renameSync(tmp, this.filePath);
+    try {
+      writeFileSync(tmp, JSON.stringify(data, null, 2) + "\n", "utf-8");
+      renameSync(tmp, this.filePath);
+    } catch (err) {
+      try { unlinkSync(tmp); } catch { /* best-effort cleanup */ }
+      throw err;
+    }
     this.lastMtime = statSync(this.filePath).mtimeMs;
     this.data = data;
   }
 
   // Optimistic reload: check mtime to pick up external modifications (e.g., by Claude Code)
+  // Throws on failure so write-path callers don't proceed with stale data.
   private reloadIfChanged(): void {
-    try {
-      const stat = statSync(this.filePath);
-      if (stat.mtimeMs > this.lastMtime) {
-        const raw = readFileSync(this.filePath, "utf-8");
-        const parsed = ReviewDataSchema.parse(JSON.parse(raw));
-        this.data = parsed;
-        this.lastMtime = stat.mtimeMs;
-      }
-    } catch (err) {
-      console.error(`Failed to reload review.json: ${err}`);
+    const stat = statSync(this.filePath);
+    if (stat.mtimeMs > this.lastMtime) {
+      const raw = readFileSync(this.filePath, "utf-8");
+      const parsed = ReviewDataSchema.parse(JSON.parse(raw));
+      this.data = parsed;
+      this.lastMtime = stat.mtimeMs;
     }
   }
 
   getData(): ReviewData {
-    this.reloadIfChanged();
+    try {
+      this.reloadIfChanged();
+    } catch (err) {
+      console.error(`Failed to reload review.json: ${err}`);
+    }
     return structuredClone(this.data);
   }
 
@@ -174,6 +181,16 @@ export class ReviewStore {
     if (updated.comments.length === before) return false;
     this.writeAtomic(updated);
     return true;
+  }
+
+  setSummary(summary: Summary): ReviewData {
+    this.reloadIfChanged();
+    const updated: ReviewData = {
+      ...this.data,
+      summary,
+    };
+    this.writeAtomic(updated);
+    return updated;
   }
 
   startWatching(callback: () => void): void {

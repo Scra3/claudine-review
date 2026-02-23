@@ -55,14 +55,14 @@ function init() {
   const destDir = join(root, ".claude", "commands");
   const destFile = join(destDir, "apply-review.md");
 
-  if (existsSync(destFile)) {
-    console.log("  Already set up! .claude/commands/apply-review.md exists.\n");
-  } else {
-    mkdirSync(destDir, { recursive: true });
-    const content = readFileSync(COMMAND_SOURCE, "utf-8");
-    writeFileSync(destFile, content);
-    console.log("  Created .claude/commands/apply-review.md\n");
-  }
+  mkdirSync(destDir, { recursive: true });
+  const content = readFileSync(COMMAND_SOURCE, "utf-8");
+  const existed = existsSync(destFile);
+  writeFileSync(destFile, content);
+  console.log(existed
+    ? "  Updated .claude/commands/apply-review.md\n"
+    : "  Created .claude/commands/apply-review.md\n"
+  );
 
   console.log(`  Setup complete! Here's how to use claude-review:
 

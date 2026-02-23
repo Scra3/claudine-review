@@ -207,4 +207,81 @@ describe("ReviewStore", () => {
     const result = store.updateComment("nonexistent", { status: "resolved" });
     expect(result).toBeNull();
   });
+
+  // ── Summary ─────────────────────────────────────────────────────────
+
+  it("summary is null by default", () => {
+    const store = new ReviewStore(repoDir, "HEAD");
+    const data = store.getData();
+    expect(data.summary).toBeNull();
+  });
+
+  it("setSummary writes and persists the summary", () => {
+    const store = new ReviewStore(repoDir, "HEAD");
+    const summary = {
+      global: "Refactors auth to JWT",
+      files: { "src/auth.ts": "New JWT middleware" },
+      testPlan: [{ description: "Login with valid token", expected: "200 OK" }],
+    };
+    const result = store.setSummary(summary);
+
+    expect(result.summary).toEqual(summary);
+    expect(store.getData().summary).toEqual(summary);
+
+    // Verify persistence on disk
+    const raw = readFileSync(join(repoDir, ".claude", "review.json"), "utf-8");
+    const parsed = JSON.parse(raw);
+    expect(parsed.summary.global).toBe("Refactors auth to JWT");
+  });
+
+  it("setSummary preserves existing comments", () => {
+    const store = new ReviewStore(repoDir, "HEAD");
+    store.addComment({ file: "a.ts", line: 1, side: "new", body: "Fix this" });
+    store.setSummary({
+      global: "Changes applied",
+      files: { "a.ts": "Fixed issue" },
+      testPlan: [],
+    });
+    const data = store.getData();
+    expect(data.comments).toHaveLength(1);
+    expect(data.comments[0].body).toBe("Fix this");
+    expect(data.summary!.global).toBe("Changes applied");
+  });
+
+  it("setSummary picks up externally added comments before writing", () => {
+    const store = new ReviewStore(repoDir, "HEAD");
+    store.addComment({ file: "a.ts", line: 1, side: "new", body: "Original" });
+
+    // Simulate Claude Code adding a thread reply externally
+    const reviewPath = join(repoDir, ".claude", "review.json");
+    const raw = JSON.parse(readFileSync(reviewPath, "utf-8"));
+    raw.comments[0].thread = [{ author: "ai", body: "Done", createdAt: new Date().toISOString() }];
+    writeFileSync(reviewPath, JSON.stringify(raw, null, 2) + "\n");
+
+    // setSummary should not lose the external thread entry
+    store.setSummary({ global: "Summary", files: {}, testPlan: [] });
+
+    const data = store.getData();
+    expect(data.comments[0].thread).toHaveLength(1);
+    expect(data.comments[0].thread[0].body).toBe("Done");
+    expect(data.summary!.global).toBe("Summary");
+  });
+
+  it("setSummary overwrites the previous summary", () => {
+    const store = new ReviewStore(repoDir, "HEAD");
+    store.setSummary({
+      global: "First summary",
+      files: {},
+      testPlan: [],
+    });
+    store.setSummary({
+      global: "Updated summary",
+      files: { "a.ts": "Changed" },
+      testPlan: [{ description: "Test A", expected: "Pass" }],
+    });
+    const data = store.getData();
+    expect(data.summary!.global).toBe("Updated summary");
+    expect(data.summary!.files).toEqual({ "a.ts": "Changed" });
+    expect(data.summary!.testPlan).toHaveLength(1);
+  });
 });

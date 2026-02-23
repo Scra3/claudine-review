@@ -150,6 +150,7 @@ describe("API", () => {
       expect(data.version).toBe(1);
       expect(data.status).toBe("draft");
       expect(data.comments).toEqual([]);
+      expect(data.summary).toBeNull();
     });
 
     it("reflects submitted comments", async () => {
@@ -330,6 +331,123 @@ describe("API", () => {
     it("returns 404 for non-existent comment", async () => {
       const res = await fetch(url("/api/comments/nonexistent"), { method: "DELETE" });
       expect(res.status).toBe(404);
+    });
+  });
+
+  // ── POST /api/summary ────────────────────────────────────────────
+
+  describe("POST /api/summary", () => {
+    it("sets summary and returns 201", async () => {
+      const res = await fetch(url("/api/summary"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          global: "Refactors auth to JWT",
+          files: { "src/auth.ts": "New JWT middleware" },
+          testPlan: [{ description: "Login with valid token", expected: "200 OK" }],
+        }),
+      });
+      expect(res.status).toBe(201);
+      const data = await res.json();
+      expect(data.summary).toBeDefined();
+      expect(data.summary.global).toBe("Refactors auth to JWT");
+      expect(data.summary.files["src/auth.ts"]).toBe("New JWT middleware");
+      expect(data.summary.testPlan).toHaveLength(1);
+    });
+
+    it("returns 400 when global is missing", async () => {
+      const res = await fetch(url("/api/summary"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 400 when global is empty string", async () => {
+      const res = await fetch(url("/api/summary"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ global: "" }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 400 on malformed JSON", async () => {
+      const res = await fetch(url("/api/summary"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "not json{{{",
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("accepts just global without files and testPlan", async () => {
+      const res = await fetch(url("/api/summary"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ global: "Simple summary" }),
+      });
+      expect(res.status).toBe(201);
+      const data = await res.json();
+      expect(data.summary.global).toBe("Simple summary");
+      expect(data.summary.files).toEqual({});
+      expect(data.summary.testPlan).toEqual([]);
+    });
+
+    it("returns 401 without token", async () => {
+      const res = await fetch(`${baseUrl}/api/summary`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ global: "Unauthorized attempt" }),
+      });
+      expect(res.status).toBe(401);
+    });
+
+    it("returns 400 when testPlan entry has empty description", async () => {
+      const res = await fetch(url("/api/summary"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          global: "Summary",
+          testPlan: [{ description: "", expected: "200 OK" }],
+        }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 400 when testPlan entry is missing expected", async () => {
+      const res = await fetch(url("/api/summary"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          global: "Summary",
+          testPlan: [{ description: "Do something" }],
+        }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 400 when files values are not strings", async () => {
+      const res = await fetch(url("/api/summary"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ global: "Summary", files: { "a.ts": 123 } }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("summary is included in GET /api/comments after POST", async () => {
+      await fetch(url("/api/summary"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ global: "Test summary" }),
+      });
+
+      const res = await fetch(url("/api/comments"));
+      const data = await res.json();
+      expect(data.summary).toBeDefined();
+      expect(data.summary.global).toBe("Test summary");
     });
   });
 

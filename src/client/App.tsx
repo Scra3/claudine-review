@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import { useDiff } from "./hooks/useDiff";
 import { useComments } from "./hooks/useComments";
 import { ReviewHeader } from "./components/ReviewHeader";
+import { SummaryPanel } from "./components/SummaryPanel";
 import { FileList } from "./components/FileList";
 import { DiffView } from "./components/DiffView";
 import { getFileName } from "./utils";
@@ -129,6 +130,9 @@ export default function App() {
           </button>
         </div>
       )}
+      {reviewData?.summary != null && (
+        <SummaryPanel key={`${reviewData.round}-${reviewData.summary.testPlan.length}`} summary={reviewData.summary} />
+      )}
       <div className="app__body">
         <FileList
           files={diff.files}
@@ -138,6 +142,7 @@ export default function App() {
           viewedFiles={viewedFiles}
           filter={filter}
           onFilterChange={setFilter}
+          fileSummaries={reviewData?.summary?.files ?? {}}
         />
         <main className="app__main">
           <DiffView
@@ -152,6 +157,7 @@ export default function App() {
             onDelete={removeComment}
             onMarkViewed={handleMarkViewed}
             isViewed={selectedFile ? viewedFiles.has(selectedFile) : false}
+            fileSummary={selectedFile ? reviewData?.summary?.files?.[selectedFile] : undefined}
           />
         </main>
       </div>

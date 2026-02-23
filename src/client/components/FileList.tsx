@@ -9,6 +9,7 @@ interface Props {
   viewedFiles: Set<string>;
   filter: string;
   onFilterChange: (v: string) => void;
+  fileSummaries: Record<string, string>;
 }
 
 export function FileList({
@@ -19,6 +20,7 @@ export function FileList({
   viewedFiles,
   filter,
   onFilterChange,
+  fileSummaries,
 }: Props) {
   const filtered = files.filter((f) => {
     if (!filter) return true;
@@ -45,6 +47,8 @@ export function FileList({
           const commentCount = comments.filter((c) => c.file === name).length;
           const isSelected = name === selectedFile;
 
+          const fileSummary = fileSummaries[name];
+
           return (
             <li
               key={name}
@@ -54,8 +58,15 @@ export function FileList({
               <span className={`file-list__status file-list__status--${getFileStatus(file).toLowerCase()}`}>
                 {getFileStatus(file)}
               </span>
-              <span className="file-list__name" title={name}>
-                {name.split("/").pop()}
+              <span className="file-list__name-col">
+                <span className="file-list__name" title={name}>
+                  {name.split("/").pop()}
+                </span>
+                {fileSummary && (
+                  <span className="file-list__summary" title={fileSummary}>
+                    {fileSummary}
+                  </span>
+                )}
               </span>
               <span className="file-list__changes">
                 <span className="file-list__add">+{file.additions}</span>

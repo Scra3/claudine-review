@@ -6,7 +6,12 @@ import { addSSEClient, broadcastUpdate } from "./sse.js";
 import {
   AddCommentSchema,
   UpdateCommentSchema,
+  SummarySchema,
 } from "../shared/types.js";
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 export interface ApiContext {
   store: ReviewStore;
@@ -95,7 +100,7 @@ export async function handleApiRequest(
       const diff = getDiff(ctx.repoRoot, ref);
       json(res, diff);
     } catch (err) {
-      error(res, `Failed to get diff: ${err}`, 500);
+      error(res, `Failed to get diff: ${errorMessage(err)}`, 500);
     }
     return true;
   }
@@ -135,7 +140,7 @@ export async function handleApiRequest(
       const body = await readBody(req);
       parsed = AddCommentSchema.parse(JSON.parse(body));
     } catch (err) {
-      error(res, `Invalid request: ${err}`);
+      error(res, `Invalid request: ${errorMessage(err)}`);
       return true;
     }
     try {
@@ -143,7 +148,27 @@ export async function handleApiRequest(
       broadcastUpdate(updated);
       json(res, updated, 201);
     } catch (err) {
-      error(res, `Server error: ${err}`, 500);
+      error(res, `Server error: ${errorMessage(err)}`, 500);
+    }
+    return true;
+  }
+
+  // POST /api/summary
+  if (path === "/api/summary" && method === "POST") {
+    let parsed;
+    try {
+      const body = await readBody(req);
+      parsed = SummarySchema.parse(JSON.parse(body));
+    } catch (err) {
+      error(res, `Invalid request: ${errorMessage(err)}`);
+      return true;
+    }
+    try {
+      const updated = ctx.store.setSummary(parsed);
+      broadcastUpdate(updated);
+      json(res, updated, 201);
+    } catch (err) {
+      error(res, `Server error: ${errorMessage(err)}`, 500);
     }
     return true;
   }
@@ -159,7 +184,7 @@ export async function handleApiRequest(
         const body = await readBody(req);
         patch = UpdateCommentSchema.parse(JSON.parse(body));
       } catch (err) {
-        error(res, `Invalid request: ${err}`);
+        error(res, `Invalid request: ${errorMessage(err)}`);
         return true;
       }
       try {
@@ -171,7 +196,7 @@ export async function handleApiRequest(
         broadcastUpdate(ctx.store.getData());
         json(res, comment);
       } catch (err) {
-        error(res, `Server error: ${err}`, 500);
+        error(res, `Server error: ${errorMessage(err)}`, 500);
       }
       return true;
     }

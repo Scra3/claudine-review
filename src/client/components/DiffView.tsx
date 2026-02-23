@@ -14,6 +14,7 @@ interface Props {
   onDelete: (id: string) => void;
   onMarkViewed: (file: string) => void;
   isViewed: boolean;
+  fileSummary?: string;
 }
 
 interface DiffLine {
@@ -69,6 +70,7 @@ export function DiffView({
   onDelete,
   onMarkViewed,
   isViewed,
+  fileSummary,
 }: Props) {
   // commentingKey = "old:42" | "new:10" | null
   const [commentingKey, setCommentingKey] = useState<string | null>(null);
@@ -173,6 +175,9 @@ export function DiffView({
         >
           {isViewed ? "Viewed ✓" : "Mark as viewed"}
         </button>
+        {fileSummary && (
+          <div className="diff-view__summary">{fileSummary}</div>
+        )}
       </div>
 
       <div className="diff-view__content">

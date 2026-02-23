@@ -29,6 +29,17 @@ export const CommentSchema = z.object({
   { message: "endLine must be >= line" },
 );
 
+export const TestStepSchema = z.object({
+  description: z.string().trim().min(1),
+  expected: z.string().trim().min(1),
+});
+
+export const SummarySchema = z.object({
+  global: z.string().trim().min(1),
+  files: z.record(z.string().min(1), z.string().min(1)).default({}),
+  testPlan: z.array(TestStepSchema).default([]),
+});
+
 export const ReviewDataSchema = z.object({
   version: z.literal(1),
   round: z.number().int().positive(),
@@ -37,6 +48,7 @@ export const ReviewDataSchema = z.object({
   metadata: z.record(z.unknown()).default({}),
   submittedAt: z.string().datetime().nullable(),
   comments: z.array(CommentSchema),
+  summary: SummarySchema.nullable().default(null),
 });
 
 export const CreateCommentSchema = z.object({
@@ -66,6 +78,8 @@ export type Comment = z.infer<typeof CommentSchema>;
 export type ReviewData = z.infer<typeof ReviewDataSchema>;
 export type CreateComment = z.infer<typeof CreateCommentSchema>;
 export type UpdateComment = z.infer<typeof UpdateCommentSchema>;
+export type TestStep = z.infer<typeof TestStepSchema>;
+export type Summary = z.infer<typeof SummarySchema>;
 
 // ── Diff types (from parse-diff) ────────────────────────────────────
 
