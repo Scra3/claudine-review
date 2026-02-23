@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import type { DiffFile, DiffHunk, Comment, CreateComment } from "../../shared/types";
 import { CommentForm } from "./CommentForm";
 import { ServerCommentBubble } from "./CommentBubble";
@@ -15,6 +15,7 @@ interface Props {
   onMarkViewed: (file: string) => void;
   isViewed: boolean;
   fileSummary?: string;
+  scrollToLine?: { line: number; side: string } | null;
 }
 
 interface DiffLine {
@@ -71,6 +72,7 @@ export function DiffView({
   onMarkViewed,
   isViewed,
   fileSummary,
+  scrollToLine,
 }: Props) {
   // commentingKey = "old:42" | "new:10" | null
   const [commentingKey, setCommentingKey] = useState<string | null>(null);
@@ -82,6 +84,25 @@ export function DiffView({
     () => (file ? buildLines(file.chunks) : []),
     [file],
   );
+
+  useEffect(() => {
+    if (!scrollToLine) return;
+    const id = `L${scrollToLine.side}:${scrollToLine.line}`;
+    let flashTimer: ReturnType<typeof setTimeout>;
+    // Small delay to allow the DOM to render after file switch
+    const timer = setTimeout(() => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+        el.classList.add("diff-line--flash");
+        flashTimer = setTimeout(() => el.classList.remove("diff-line--flash"), 1500);
+      }
+    }, 50);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(flashTimer);
+    };
+  }, [scrollToLine]);
 
   const handleSaveComment = useCallback(
     (body: string) => {
@@ -204,6 +225,7 @@ export function DiffView({
               return (
                 <React.Fragment key={`line-${i}`}>
                   <tr
+                    id={`L${key}`}
                     className={`diff-line diff-line--${line.type}`}
                     onMouseEnter={() => setHoveredIdx(i)}
                     onMouseLeave={() => setHoveredIdx(null)}

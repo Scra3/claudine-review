@@ -67,8 +67,8 @@ export function FileList({
               className={["file-list__item", isSelected && "file-list__item--selected", isViewed && "file-list__item--viewed"].filter(Boolean).join(" ")}
               onClick={() => onSelectFile(name)}
             >
-              <span className={`file-list__status file-list__status--${getFileStatus(file).toLowerCase()}`}>
-                {getFileStatus(file)}
+              <span className={`file-list__status ${isViewed ? "file-list__status--viewed" : `file-list__status--${getFileStatus(file).toLowerCase()}`}`}>
+                {isViewed ? "\u2713" : getFileStatus(file)}
               </span>
               <span className="file-list__name-col">
                 <span className="file-list__name" title={name}>

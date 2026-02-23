@@ -1,8 +1,9 @@
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useDiff } from "./hooks/useDiff";
 import { useComments } from "./hooks/useComments";
 import { ReviewHeader } from "./components/ReviewHeader";
 import { SummaryPanel } from "./components/SummaryPanel";
+import { SearchPanel, type SearchResult } from "./components/SearchPanel";
 import { FileList } from "./components/FileList";
 import { DiffView } from "./components/DiffView";
 import { getFileName } from "./utils";
@@ -38,6 +39,51 @@ export default function App() {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [scrollToLine, setScrollToLine] = useState<{ line: number; side: string; token: number } | null>(null);
+  const scrollTokenRef = useRef(0);
+
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim() || !diff) return [];
+    const q = searchQuery.toLowerCase();
+    const results: SearchResult[] = [];
+
+    for (const file of diff.files) {
+      const name = getFileName(file);
+      for (const chunk of file.chunks) {
+        for (const change of chunk.changes) {
+          if (change.content.toLowerCase().includes(q)) {
+            const line = change.type === "del" ? change.ln : (change.ln2 ?? change.ln);
+            if (line == null || line <= 0) continue;
+            results.push({
+              type: "diff",
+              file: name,
+              line,
+              side: change.type === "del" ? "old" : "new",
+              snippet: change.content,
+            });
+          }
+        }
+      }
+    }
+
+    for (const c of serverComments) {
+      const bodies = [c.body, ...c.thread.map((t) => t.body)];
+      for (const body of bodies) {
+        if (body.toLowerCase().includes(q)) {
+          results.push({ type: "comment", file: c.file, line: c.line, side: "new", snippet: body, commentId: c.id });
+        }
+      }
+    }
+
+    return results;
+  }, [searchQuery, diff, serverComments]);
+
+  const handleSearchNavigate = useCallback((file: string, line: number, side: string) => {
+    setSelectedFile(file);
+    scrollTokenRef.current += 1;
+    setScrollToLine({ line, side, token: scrollTokenRef.current });
+  }, []);
 
   // Auto-select first file
   useEffect(() => {
@@ -140,6 +186,8 @@ export default function App() {
         fileCount={diff.files.length}
         totalAdditions={diff.totalAdditions}
         totalDeletions={diff.totalDeletions}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
       />
       {diffChanged && (
         <div className="diff-changed-banner">
@@ -151,6 +199,14 @@ export default function App() {
       )}
       {reviewData?.summary != null && (
         <SummaryPanel key={`${reviewData.round}-${reviewData.summary.testPlan.length}`} summary={reviewData.summary} />
+      )}
+      {searchQuery.trim() && (
+        <SearchPanel
+          results={searchResults}
+          query={searchQuery}
+          onNavigate={handleSearchNavigate}
+          onClose={() => setSearchQuery("")}
+        />
       )}
       <div className="app__body">
         <FileList
@@ -177,6 +233,7 @@ export default function App() {
             onMarkViewed={handleMarkViewed}
             isViewed={selectedFile ? viewedFiles.has(selectedFile) : false}
             fileSummary={selectedFile ? reviewData?.summary?.files?.[selectedFile] : undefined}
+            scrollToLine={scrollToLine}
           />
         </main>
       </div>
@@ -187,6 +244,7 @@ export default function App() {
       )}
       <footer className="app__footer">
         <span>j/k: files</span>
+        <span>/: search</span>
         <span>⌘Enter: comment</span>
         <span>Esc: cancel</span>
       </footer>
