@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execSync } from "node:child_process";
-import { getDiff, getFileContent } from "../src/server/git";
+import { getDiff, getBranch, getFileContent } from "../src/server/git";
 
 function createTempRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), "claude-review-git-test-"));
@@ -50,6 +50,28 @@ describe("git", () => {
       expect(file).toBeDefined();
       expect(file!.new).toBe(true);
       expect(file!.additions).toBeGreaterThan(0);
+    });
+  });
+
+  describe("getBranch", () => {
+    it("returns the current branch name", () => {
+      const branch = getBranch(repoDir);
+      // Default branch in a fresh git init is typically "main" or "master"
+      expect(typeof branch).toBe("string");
+      expect(branch.length).toBeGreaterThan(0);
+    });
+
+    it("returns the correct name after switching branches", () => {
+      execSync("git checkout -b feat/test-branch", { cwd: repoDir, stdio: "ignore" });
+      const branch = getBranch(repoDir);
+      expect(branch).toBe("feat/test-branch");
+    });
+
+    it("returns HEAD for detached HEAD state", () => {
+      const sha = execSync("git rev-parse HEAD", { cwd: repoDir, encoding: "utf-8" }).trim();
+      execSync(`git checkout ${sha}`, { cwd: repoDir, stdio: "ignore" });
+      const branch = getBranch(repoDir);
+      expect(branch).toBe("HEAD");
     });
   });
 

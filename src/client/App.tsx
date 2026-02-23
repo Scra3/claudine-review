@@ -46,6 +46,13 @@ export default function App() {
     }
   }, [diff, selectedFile]);
 
+  // Set document title with project and branch
+  useEffect(() => {
+    if (diff?.project) {
+      document.title = `${diff.project} @ ${diff.branch} — claude-review`;
+    }
+  }, [diff?.project, diff?.branch]);
+
   const handleMarkViewed = useCallback((file: string) => {
     setViewedFiles((prev) => {
       const next = new Set(prev);
@@ -128,6 +135,8 @@ export default function App() {
     <div className="app">
       <ReviewHeader
         reviewData={reviewData}
+        project={diff.project ?? ""}
+        branch={diff.branch ?? ""}
         fileCount={diff.files.length}
         totalAdditions={diff.totalAdditions}
         totalDeletions={diff.totalDeletions}

@@ -139,6 +139,20 @@ textarea {
   color: var(--text-secondary);
 }
 
+.review-header__badge--project {
+  background: rgba(88, 166, 255, 0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.review-header__badge--branch {
+  background: rgba(63, 185, 80, 0.12);
+  border-color: var(--green);
+  color: var(--green);
+  font-family: var(--font-mono);
+}
+
 .review-header__stat {
   font-size: 13px;
   color: var(--text-secondary);

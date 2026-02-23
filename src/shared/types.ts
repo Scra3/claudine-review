@@ -115,6 +115,8 @@ export interface DiffFile {
 
 export interface DiffResponse {
   ref: string;
+  branch?: string;
+  project?: string;
   files: DiffFile[];
   totalAdditions: number;
   totalDeletions: number;

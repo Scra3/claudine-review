@@ -2,6 +2,8 @@ import type { ReviewData } from "../../shared/types";
 
 interface Props {
   reviewData: ReviewData | null;
+  project: string;
+  branch: string;
   fileCount: number;
   totalAdditions: number;
   totalDeletions: number;
@@ -9,6 +11,8 @@ interface Props {
 
 export function ReviewHeader({
   reviewData,
+  project,
+  branch,
   fileCount,
   totalAdditions,
   totalDeletions,
@@ -19,6 +23,8 @@ export function ReviewHeader({
     <header className="review-header">
       <div className="review-header__left">
         <span className="review-header__logo">claude-review</span>
+        {project && <span className="review-header__badge review-header__badge--project">{project}</span>}
+        {branch && <span className="review-header__badge review-header__badge--branch">{branch}</span>}
         <span className="review-header__badge">Round {round}</span>
         <span className="review-header__stat">{fileCount} files</span>
         <span className="review-header__stat review-header__stat--add">

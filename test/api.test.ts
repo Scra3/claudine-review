@@ -108,6 +108,16 @@ describe("API", () => {
       expect(file).toBeDefined();
       expect(file.chunks.length).toBeGreaterThan(0);
     });
+
+    it("includes branch and project in the response", async () => {
+      const res = await fetch(url("/api/diff"));
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(typeof data.branch).toBe("string");
+      expect(data.branch.length).toBeGreaterThan(0);
+      expect(typeof data.project).toBe("string");
+      expect(data.project.length).toBeGreaterThan(0);
+    });
   });
 
   // ── GET /api/file ──────────────────────────────────────────────────

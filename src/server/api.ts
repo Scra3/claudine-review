@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { timingSafeEqual } from "node:crypto";
-import { getDiff, getFileContent } from "./git.js";
+import { basename } from "node:path";
+import { getDiff, getBranch, getFileContent } from "./git.js";
 import { ReviewStore } from "./store.js";
 import { addSSEClient, broadcastUpdate } from "./sse.js";
 import {
@@ -98,7 +99,9 @@ export async function handleApiRequest(
     const ref = url.searchParams.get("ref") ?? ctx.ref;
     try {
       const diff = getDiff(ctx.repoRoot, ref);
-      json(res, diff);
+      const branch = getBranch(ctx.repoRoot);
+      const project = basename(ctx.repoRoot);
+      json(res, { ...diff, branch, project });
     } catch (err) {
       error(res, `Failed to get diff: ${errorMessage(err)}`, 500);
     }

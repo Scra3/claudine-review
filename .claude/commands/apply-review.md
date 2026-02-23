@@ -26,7 +26,7 @@ After processing all comments, update the "summary" field in .claude/review.json
 ```json
 {
   "summary": {
-    "global": "<A concise 2-3 sentence summary of all changes made and questions answered>",
+    "global": "<A concise 2-3 sentence summary of the business intent — what the code change achieves for the user or product, not what review comments were addressed>",
     "files": {
       "<file path>": "<One-line summary of what changed in this file>"
     },
@@ -41,7 +41,7 @@ After processing all comments, update the "summary" field in .claude/review.json
 ```
 
 Rules for the summary:
-- "global": summarize what was done across all comments (changes made, questions answered)
+- "global": summarize the business intent of the code change — what it achieves for the user or product, why it matters. Do NOT describe which review comments were addressed or list individual responses. Think of it as a PR description: what does this change do and why.
 - "files": include an entry for EVERY file in the diff (not just files with comments). Run `git diff --name-only` to get the full list. Key is the file path, value is a summary with both the business purpose (user-facing impact, why it matters) and the technical approach (how it's implemented, key decisions).
 - "testPlan": provide 2-5 concrete manual test steps so the reviewer can verify the changes work. Each step has a "description" (what to do) and "expected" (what should happen).
 
