@@ -11,17 +11,18 @@ export class ReviewStore {
   private onChange: (() => void) | null = null;
   private watcher: ReturnType<typeof watch> | null = null;
 
-  constructor(repoRoot: string, ref: string) {
+  constructor(repoRoot: string, ref: string, branch: string) {
     this.filePath = join(repoRoot, ".claude", "review.json");
-    this.data = this.load(ref);
+    this.data = this.load(ref, branch);
   }
 
-  private static emptyReview(ref: string): ReviewData {
+  private static emptyReview(ref: string, branch: string): ReviewData {
     return {
       version: 1,
       round: 1,
       status: "draft",
       ref,
+      branch,
       metadata: {},
       submittedAt: null,
       comments: [],
@@ -29,39 +30,70 @@ export class ReviewStore {
     };
   }
 
-  private load(ref: string): ReviewData {
+  private static sanitizeBranch(branch: string): string {
+    return branch.replace(/[/\\:*?"<>|]/g, "-").slice(0, 100);
+  }
+
+  private backupAndReset(ref: string, branch: string, reason: string, suffix: string, existing?: ReviewData): ReviewData {
+    const backupPath = this.filePath + `.backup.${suffix}`;
+    console.warn(`${reason}, creating backup...`);
+    try {
+      renameSync(this.filePath, backupPath);
+      console.warn(`  Backed up to ${backupPath}`);
+    } catch (backupErr) {
+      console.error(`CRITICAL: Failed to back up review.json: ${backupErr}`);
+      if (existing) {
+        console.error(`  Keeping existing review to avoid data loss.`);
+        return existing;
+      }
+      console.error(`  The file will be overwritten. Data may be lost.`);
+    }
+    const fresh = ReviewStore.emptyReview(ref, branch);
+    this.writeAtomic(fresh);
+    return fresh;
+  }
+
+  private load(ref: string, branch: string): ReviewData {
     const dir = dirname(this.filePath);
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
 
     if (!existsSync(this.filePath)) {
-      const initial = ReviewStore.emptyReview(ref);
+      const initial = ReviewStore.emptyReview(ref, branch);
       this.writeAtomic(initial);
       return initial;
     }
 
+    let result: ReviewData;
     try {
       const raw = readFileSync(this.filePath, "utf-8");
       const parsed = JSON.parse(raw);
-      const result = ReviewDataSchema.parse(parsed);
+      result = ReviewDataSchema.parse(parsed);
       this.lastMtime = statSync(this.filePath).mtimeMs;
-      return result;
-    } catch (err) {
-      // Failed to read or validate review.json — backup and create fresh
-      console.warn("Warning: review.json is corrupted, creating backup...");
-      const backupPath = this.filePath + ".backup." + Date.now();
-      try {
-        renameSync(this.filePath, backupPath);
-        console.warn(`  Backed up to ${backupPath}`);
-      } catch (backupErr) {
-        console.error(`CRITICAL: Failed to back up corrupted review.json: ${backupErr}`);
-        console.error(`  The corrupted file will be overwritten. Data may be lost.`);
-      }
-      const fresh = ReviewStore.emptyReview(ref);
-      this.writeAtomic(fresh);
-      return fresh;
+    } catch {
+      return this.backupAndReset(ref, branch,
+        "Warning: review.json is corrupted",
+        String(Date.now()));
     }
+
+    // Branch logic outside try-catch so write errors aren't misdiagnosed as corruption
+    if (result.branch === undefined) {
+      console.log(`Migrating legacy review.json: adopting branch "${branch}"`);
+      result.branch = branch;
+      this.writeAtomic(result);
+      return result;
+    }
+
+    if (result.branch !== branch && branch !== "HEAD") {
+      const sanitized = ReviewStore.sanitizeBranch(result.branch);
+      return this.backupAndReset(ref, branch,
+        `Branch changed from "${result.branch}" to "${branch}"`,
+        `${sanitized}.${Date.now()}`,
+        result);
+    }
+
+    return result;
   }
 
   // Atomic write: write to temp file then rename to avoid partial reads

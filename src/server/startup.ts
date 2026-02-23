@@ -1,10 +1,12 @@
 import { execSync } from "node:child_process";
 import { createServer as createNetServer } from "node:net";
 import { randomBytes } from "node:crypto";
+import { getBranch } from "./git.js";
 
 export interface StartupConfig {
   repoRoot: string;
   ref: string;
+  branch: string;
   port: number;
   token: string;
 }
@@ -58,8 +60,9 @@ export async function startup(opts: {
   checkGit();
   const repoRoot = getRepoRoot();
   const ref = opts.ref ?? "HEAD";
+  const branch = getBranch(repoRoot);
   const port = await findAvailablePort(opts.port ?? 3847);
   const token = randomBytes(16).toString("hex");
 
-  return { repoRoot, ref, port, token };
+  return { repoRoot, ref, branch, port, token };
 }

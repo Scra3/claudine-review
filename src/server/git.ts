@@ -7,11 +7,8 @@ import type { DiffFile, DiffResponse } from "../shared/types.js";
 const GIT_EXEC_OPTS = { encoding: "utf-8" as const, maxBuffer: 10 * 1024 * 1024 };
 
 export function getBranch(repoRoot: string): string {
-  try {
-    return execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoRoot, ...GIT_EXEC_OPTS }).trim();
-  } catch {
-    return "HEAD";
-  }
+  // In detached HEAD state, git naturally returns the literal string "HEAD"
+  return execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoRoot, ...GIT_EXEC_OPTS }).trim();
 }
 
 export function getDiff(repoRoot: string, ref: string): DiffResponse {

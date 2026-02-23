@@ -45,6 +45,7 @@ export const ReviewDataSchema = z.object({
   round: z.number().int().positive(),
   status: z.enum(["draft", "submitted", "resolved"]),
   ref: z.string().min(1),
+  branch: z.string().min(1).optional(),
   metadata: z.record(z.unknown()).default({}),
   submittedAt: z.string().datetime().nullable(),
   comments: z.array(CommentSchema),

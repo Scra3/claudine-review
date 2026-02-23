@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execSync } from "node:child_process";
@@ -29,7 +29,7 @@ describe("ReviewStore", () => {
   });
 
   it("creates review.json on first load", () => {
-    const store = new ReviewStore(repoDir, "HEAD");
+    const store = new ReviewStore(repoDir, "HEAD", "main");
     const data = store.getData();
 
     expect(data.version).toBe(1);
@@ -40,7 +40,7 @@ describe("ReviewStore", () => {
   });
 
   it("adds comments one by one", () => {
-    const store = new ReviewStore(repoDir, "HEAD");
+    const store = new ReviewStore(repoDir, "HEAD", "main");
 
     const result1 = store.addComment({ file: "index.html", line: 28, side: "new", body: "Fix title" });
     expect(result1.status).toBe("submitted");
@@ -57,7 +57,7 @@ describe("ReviewStore", () => {
   });
 
   it("updates a comment status", () => {
-    const store = new ReviewStore(repoDir, "HEAD");
+    const store = new ReviewStore(repoDir, "HEAD", "main");
     store.addComment({ file: "index.html", line: 28, side: "new", body: "Fix title" });
 
     const comment = store.getComments()[0];
@@ -69,7 +69,7 @@ describe("ReviewStore", () => {
   });
 
   it("deletes a comment", () => {
-    const store = new ReviewStore(repoDir, "HEAD");
+    const store = new ReviewStore(repoDir, "HEAD", "main");
     store.addComment({ file: "index.html", line: 28, side: "new", body: "Fix title" });
 
     const comment = store.getComments()[0];
@@ -80,12 +80,12 @@ describe("ReviewStore", () => {
   });
 
   it("returns false when deleting non-existent comment", () => {
-    const store = new ReviewStore(repoDir, "HEAD");
+    const store = new ReviewStore(repoDir, "HEAD", "main");
     expect(store.deleteComment("nonexistent")).toBe(false);
   });
 
   it("atomic writes produce valid JSON matching store data", () => {
-    const store = new ReviewStore(repoDir, "HEAD");
+    const store = new ReviewStore(repoDir, "HEAD", "main");
     store.addComment({ file: "test.ts", line: 1, side: "new", body: "test" });
 
     const raw = readFileSync(join(repoDir, ".claude", "review.json"), "utf-8");
@@ -97,7 +97,7 @@ describe("ReviewStore", () => {
   });
 
   it("sets status to resolved when all comments resolved", () => {
-    const store = new ReviewStore(repoDir, "HEAD");
+    const store = new ReviewStore(repoDir, "HEAD", "main");
     store.addComment({ file: "a.ts", line: 1, side: "new", body: "one" });
     store.addComment({ file: "b.ts", line: 2, side: "new", body: "two" });
 
@@ -111,7 +111,7 @@ describe("ReviewStore", () => {
   // ── Reply / Thread ──────────────────────────────────────────────────
 
   it("adds a reply to the thread with createdAt", () => {
-    const store = new ReviewStore(repoDir, "HEAD");
+    const store = new ReviewStore(repoDir, "HEAD", "main");
     store.addComment({ file: "a.ts", line: 1, side: "new", body: "Needs fix" });
 
     const id = store.getComments()[0].id;
@@ -127,7 +127,7 @@ describe("ReviewStore", () => {
   });
 
   it("accumulates multiple replies in the thread", () => {
-    const store = new ReviewStore(repoDir, "HEAD");
+    const store = new ReviewStore(repoDir, "HEAD", "main");
     store.addComment({ file: "a.ts", line: 1, side: "new", body: "Check this" });
 
     const id = store.getComments()[0].id;
@@ -142,7 +142,7 @@ describe("ReviewStore", () => {
   // ── Reopen ──────────────────────────────────────────────────────────
 
   it("reopens a resolved comment", () => {
-    const store = new ReviewStore(repoDir, "HEAD");
+    const store = new ReviewStore(repoDir, "HEAD", "main");
     store.addComment({ file: "a.ts", line: 1, side: "new", body: "Fix" });
 
     const id = store.getComments()[0].id;
@@ -159,7 +159,7 @@ describe("ReviewStore", () => {
 
   it("recovers from corrupted review.json by creating backup", () => {
     // Create a valid store first
-    new ReviewStore(repoDir, "HEAD");
+    new ReviewStore(repoDir, "HEAD", "main");
     const reviewPath = join(repoDir, ".claude", "review.json");
     expect(existsSync(reviewPath)).toBe(true);
 
@@ -167,7 +167,7 @@ describe("ReviewStore", () => {
     writeFileSync(reviewPath, "NOT VALID JSON {{{{");
 
     // Loading should recover gracefully
-    const store2 = new ReviewStore(repoDir, "HEAD");
+    const store2 = new ReviewStore(repoDir, "HEAD", "main");
     const data = store2.getData();
     expect(data.version).toBe(1);
     expect(data.status).toBe("draft");
@@ -182,7 +182,7 @@ describe("ReviewStore", () => {
   // ── External modification reload ────────────────────────────────────
 
   it("picks up external modifications on next read", () => {
-    const store = new ReviewStore(repoDir, "HEAD");
+    const store = new ReviewStore(repoDir, "HEAD", "main");
     store.addComment({ file: "a.ts", line: 1, side: "new", body: "Original" });
 
     // Simulate external modification (e.g., Claude Code editing the file)
@@ -203,7 +203,7 @@ describe("ReviewStore", () => {
   // ── Update non-existent comment ─────────────────────────────────────
 
   it("returns null when updating non-existent comment", () => {
-    const store = new ReviewStore(repoDir, "HEAD");
+    const store = new ReviewStore(repoDir, "HEAD", "main");
     const result = store.updateComment("nonexistent", { status: "resolved" });
     expect(result).toBeNull();
   });
@@ -211,13 +211,13 @@ describe("ReviewStore", () => {
   // ── Summary ─────────────────────────────────────────────────────────
 
   it("summary is null by default", () => {
-    const store = new ReviewStore(repoDir, "HEAD");
+    const store = new ReviewStore(repoDir, "HEAD", "main");
     const data = store.getData();
     expect(data.summary).toBeNull();
   });
 
   it("setSummary writes and persists the summary", () => {
-    const store = new ReviewStore(repoDir, "HEAD");
+    const store = new ReviewStore(repoDir, "HEAD", "main");
     const summary = {
       global: "Refactors auth to JWT",
       files: { "src/auth.ts": "New JWT middleware" },
@@ -235,7 +235,7 @@ describe("ReviewStore", () => {
   });
 
   it("setSummary preserves existing comments", () => {
-    const store = new ReviewStore(repoDir, "HEAD");
+    const store = new ReviewStore(repoDir, "HEAD", "main");
     store.addComment({ file: "a.ts", line: 1, side: "new", body: "Fix this" });
     store.setSummary({
       global: "Changes applied",
@@ -249,7 +249,7 @@ describe("ReviewStore", () => {
   });
 
   it("setSummary picks up externally added comments before writing", () => {
-    const store = new ReviewStore(repoDir, "HEAD");
+    const store = new ReviewStore(repoDir, "HEAD", "main");
     store.addComment({ file: "a.ts", line: 1, side: "new", body: "Original" });
 
     // Simulate Claude Code adding a thread reply externally
@@ -268,7 +268,7 @@ describe("ReviewStore", () => {
   });
 
   it("setSummary overwrites the previous summary", () => {
-    const store = new ReviewStore(repoDir, "HEAD");
+    const store = new ReviewStore(repoDir, "HEAD", "main");
     store.setSummary({
       global: "First summary",
       files: {},
@@ -283,5 +283,123 @@ describe("ReviewStore", () => {
     expect(data.summary!.global).toBe("Updated summary");
     expect(data.summary!.files).toEqual({ "a.ts": "Changed" });
     expect(data.summary!.testPlan).toHaveLength(1);
+  });
+
+  // ── Branch switching ────────────────────────────────────────────────
+
+  it("fresh review includes branch field", () => {
+    const store = new ReviewStore(repoDir, "HEAD", "main");
+    const data = store.getData();
+    expect(data.branch).toBe("main");
+  });
+
+  it("same branch loads normally and keeps comments", () => {
+    const store1 = new ReviewStore(repoDir, "HEAD", "main");
+    store1.addComment({ file: "a.ts", line: 1, side: "new", body: "Keep me" });
+
+    const store2 = new ReviewStore(repoDir, "HEAD", "main");
+    const data = store2.getData();
+    expect(data.branch).toBe("main");
+    expect(data.comments).toHaveLength(1);
+    expect(data.comments[0].body).toBe("Keep me");
+  });
+
+  it("different branch creates backup and fresh review", () => {
+    const store1 = new ReviewStore(repoDir, "HEAD", "main");
+    store1.addComment({ file: "a.ts", line: 1, side: "new", body: "Old comment" });
+
+    const store2 = new ReviewStore(repoDir, "HEAD", "feature");
+    const data = store2.getData();
+    expect(data.branch).toBe("feature");
+    expect(data.comments).toEqual([]);
+
+    // Backup file should exist with old data
+    const claudeDir = join(repoDir, ".claude");
+    const files = execSync(`ls "${claudeDir}"`, { encoding: "utf-8" });
+    expect(files).toContain("review.json.backup.main.");
+
+    // Verify backup contains old comment
+    const backupFile = files.split("\n").find((f: string) => f.startsWith("review.json.backup.main."));
+    const backupData = JSON.parse(readFileSync(join(claudeDir, backupFile!), "utf-8"));
+    expect(backupData.comments).toHaveLength(1);
+    expect(backupData.comments[0].body).toBe("Old comment");
+  });
+
+  it("legacy file without branch adopts current branch without reset", () => {
+    // Create a review file without branch field (legacy)
+    const claudeDir = join(repoDir, ".claude");
+    mkdirSync(claudeDir, { recursive: true });
+    const reviewPath = join(claudeDir, "review.json");
+    const legacy = {
+      version: 1,
+      round: 1,
+      status: "submitted",
+      ref: "HEAD",
+      metadata: {},
+      submittedAt: new Date().toISOString(),
+      comments: [{
+        id: "legacy1",
+        type: "comment",
+        file: "old.ts",
+        line: 5,
+        side: "new",
+        body: "Legacy comment",
+        status: "pending",
+        response: null,
+        thread: [],
+        createdAt: new Date().toISOString(),
+        resolvedAt: null,
+      }],
+      summary: null,
+    };
+    writeFileSync(reviewPath, JSON.stringify(legacy, null, 2) + "\n");
+
+    const store = new ReviewStore(repoDir, "HEAD", "main");
+    const data = store.getData();
+
+    // Should adopt branch without resetting
+    expect(data.branch).toBe("main");
+    expect(data.comments).toHaveLength(1);
+    expect(data.comments[0].body).toBe("Legacy comment");
+
+    // Branch should be persisted to disk
+    const onDisk = JSON.parse(readFileSync(reviewPath, "utf-8"));
+    expect(onDisk.branch).toBe("main");
+
+    // No backup should be created
+    const files = execSync(`ls "${claudeDir}"`, { encoding: "utf-8" });
+    expect(files).not.toContain("review.json.backup.");
+  });
+
+  it("detached HEAD skips branch-switch detection", () => {
+    const store1 = new ReviewStore(repoDir, "HEAD", "main");
+    store1.addComment({ file: "a.ts", line: 1, side: "new", body: "Keep me" });
+
+    // Simulate detached HEAD — should NOT trigger backup+reset
+    const store2 = new ReviewStore(repoDir, "HEAD", "HEAD");
+    const data = store2.getData();
+    expect(data.comments).toHaveLength(1);
+    expect(data.comments[0].body).toBe("Keep me");
+    // branch stays as "main" since HEAD doesn't overwrite it
+    expect(data.branch).toBe("main");
+
+    // No backup should be created
+    const claudeDir = join(repoDir, ".claude");
+    const files = execSync(`ls "${claudeDir}"`, { encoding: "utf-8" });
+    expect(files).not.toContain("review.json.backup.");
+  });
+
+  it("branch names with / are sanitized in backup filename", () => {
+    const store1 = new ReviewStore(repoDir, "HEAD", "feature/auth");
+    store1.addComment({ file: "a.ts", line: 1, side: "new", body: "Comment" });
+
+    // Switch to different branch
+    new ReviewStore(repoDir, "HEAD", "develop");
+
+    const claudeDir = join(repoDir, ".claude");
+    const files = execSync(`ls "${claudeDir}"`, { encoding: "utf-8" });
+    // Should use sanitized name (/ replaced with -)
+    expect(files).toContain("review.json.backup.feature-auth.");
+    expect(files).not.toContain("review.json.backup.feature/auth.");
   });
 });

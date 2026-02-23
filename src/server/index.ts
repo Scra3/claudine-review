@@ -28,7 +28,7 @@ export async function startServer(opts: {
   port?: number;
 }): Promise<{ url: string; token: string; close: () => void }> {
   const config = await startup(opts);
-  const store = new ReviewStore(config.repoRoot, config.ref);
+  const store = new ReviewStore(config.repoRoot, config.ref, config.branch);
 
   const ctx: ApiContext = {
     store,
