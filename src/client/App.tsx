@@ -8,6 +8,7 @@ import { buildSearchResults } from "./search";
 import { FileList } from "./components/FileList";
 import { DiffView } from "./components/DiffView";
 import { getFileName } from "./utils";
+import { loadSidebarWidth, saveSidebarWidth, clampSidebarWidth, SIDEBAR_MIN } from "./sidebar";
 import { storeTokenFromUrl } from "./api";
 import "./styles.css";
 
@@ -36,6 +37,53 @@ export default function App() {
     }
     return map;
   }, [serverComments]);
+
+  const [sidebarWidth, setSidebarWidth] = useState(loadSidebarWidth);
+  const [resizing, setResizing] = useState(false);
+  const dragCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => { dragCleanupRef.current?.(); };
+  }, []);
+
+  const handleResizePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
+    setResizing(true);
+
+    let lastWidth = 0;
+
+    const onPointerMove = (ev: PointerEvent) => {
+      lastWidth = clampSidebarWidth(ev.clientX, window.innerWidth);
+      setSidebarWidth(lastWidth);
+    };
+
+    const cleanup = () => {
+      setResizing(false);
+      if (target.hasPointerCapture(e.pointerId)) {
+        target.releasePointerCapture(e.pointerId);
+      }
+      target.removeEventListener("pointermove", onPointerMove);
+      target.removeEventListener("pointerup", onPointerUp);
+      target.removeEventListener("lostpointercapture", onLostCapture);
+      dragCleanupRef.current = null;
+    };
+
+    const onPointerUp = () => {
+      cleanup();
+      if (lastWidth > 0) {
+        saveSidebarWidth(lastWidth);
+      }
+    };
+
+    const onLostCapture = () => cleanup();
+
+    dragCleanupRef.current = cleanup;
+    target.addEventListener("pointermove", onPointerMove);
+    target.addEventListener("pointerup", onPointerUp);
+    target.addEventListener("lostpointercapture", onLostCapture);
+  }, []);
 
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
@@ -189,6 +237,11 @@ export default function App() {
           filter={filter}
           onFilterChange={setFilter}
           fileSummaries={reviewData?.summary?.files ?? {}}
+          style={{ width: sidebarWidth }}
+        />
+        <div
+          className={`resize-handle${resizing ? " resize-handle--active" : ""}`}
+          onPointerDown={handleResizePointerDown}
         />
         <main className="app__main">
           <DiffView

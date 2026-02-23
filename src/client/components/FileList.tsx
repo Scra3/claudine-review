@@ -11,6 +11,7 @@ interface Props {
   filter: string;
   onFilterChange: (v: string) => void;
   fileSummaries: Record<string, string>;
+  style?: React.CSSProperties;
 }
 
 export function FileList({
@@ -22,6 +23,7 @@ export function FileList({
   filter,
   onFilterChange,
   fileSummaries,
+  style,
 }: Props) {
   const filtered = files.filter((f) => {
     if (!filter) return true;
@@ -42,7 +44,7 @@ export function FileList({
   }, [fileStats]);
 
   return (
-    <aside className="file-list">
+    <aside className="file-list" style={style}>
       <div className="file-list__filter">
         <input
           type="text"
@@ -71,6 +73,7 @@ export function FileList({
                 {isViewed ? "\u2713" : getFileStatus(file)}
               </span>
               <span className="file-list__name-col">
+                {name.includes("/") && <span className="file-list__dir">{name.substring(0, name.lastIndexOf("/"))}</span>}
                 <span className="file-list__name" title={name}>
                   {name.split("/").pop()}
                 </span>
