@@ -86,9 +86,10 @@ export default function App() {
     const files = diff?.files ?? [];
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't capture when typing in textarea/input
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === "TEXTAREA" || tag === "INPUT") return;
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+      const tag = target.tagName;
+      if (tag === "TEXTAREA" || tag === "INPUT" || tag === "SELECT" || target.isContentEditable) return;
 
       const currentIdx = files.findIndex(
         (f) => getFileName(f) === selectedFile,

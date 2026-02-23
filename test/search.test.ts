@@ -154,11 +154,84 @@ describe("buildSearchResults", () => {
       makeFile("a.ts", [{ type: "add", content: "+import React", ln: 1 }]),
       makeFile("b.ts", [{ type: "add", content: "+import React", ln: 1 }]),
     ];
-    // Fix: makeFile sets both from and to to the same name, need distinct files
-    files[1] = { ...files[1], from: "b.ts", to: "b.ts" };
     const results = buildSearchResults("React", files, []);
     expect(results).toHaveLength(2);
     expect(results.map((r) => r.file)).toEqual(["a.ts", "b.ts"]);
+  });
+
+  it("returns separate results when both comment body and thread reply match", () => {
+    const comment = makeComment({
+      file: "app.ts",
+      line: 5,
+      body: "We should refactor this function",
+      thread: [{ author: "user", body: "I started refactoring yesterday" }],
+    });
+    const results = buildSearchResults("refactor", [], [comment]);
+    expect(results).toHaveLength(2);
+    expect(results[0].snippet).toBe("We should refactor this function");
+    expect(results[1].snippet).toBe("I started refactoring yesterday");
+    expect(results.every((r) => r.commentId === "c1")).toBe(true);
+  });
+
+  it("uses ln fallback for normal lines when ln2 is missing", () => {
+    const file = makeFile("app.ts", [
+      { type: "normal", content: " fallback line", ln: 12 },
+    ]);
+    const results = buildSearchResults("fallback", [file], []);
+    expect(results).toHaveLength(1);
+    expect(results[0].line).toBe(12);
+  });
+
+  it("uses the from name for deleted files", () => {
+    const file: DiffFile = {
+      from: "removed.ts", to: "/dev/null",
+      additions: 0, deletions: 1, new: false, deleted: true, renamed: false,
+      chunks: [{ oldStart: 1, oldLines: 1, newStart: 0, newLines: 0, content: "@@", changes: [
+        { type: "del", content: "-deleted line", ln: 1 },
+      ] }],
+    };
+    const results = buildSearchResults("deleted", [file], []);
+    expect(results).toHaveLength(1);
+    expect(results[0].file).toBe("removed.ts");
+  });
+
+  it("returns one result per line even when query appears multiple times", () => {
+    const file = makeFile("app.ts", [
+      { type: "add", content: "+foo = foo + 1", ln: 3 },
+    ]);
+    const results = buildSearchResults("foo", [file], []);
+    expect(results).toHaveLength(1);
+  });
+
+  it("preserves comment side field for old-side comments", () => {
+    const comment = makeComment({
+      file: "app.ts",
+      line: 7,
+      body: "This was wrong",
+      side: "old",
+    });
+    const results = buildSearchResults("wrong", [], [comment]);
+    expect(results).toHaveLength(1);
+    expect(results[0].side).toBe("old");
+  });
+
+  it("finds matches across multiple chunks", () => {
+    const file: DiffFile = {
+      from: "app.ts", to: "app.ts",
+      additions: 2, deletions: 0, new: false, deleted: false, renamed: false,
+      chunks: [
+        { oldStart: 1, oldLines: 5, newStart: 1, newLines: 5, content: "@@", changes: [
+          { type: "add", content: "+first needle", ln: 3 },
+        ] },
+        { oldStart: 10, oldLines: 5, newStart: 10, newLines: 5, content: "@@", changes: [
+          { type: "add", content: "+second needle", ln: 12 },
+        ] },
+      ],
+    };
+    const results = buildSearchResults("needle", [file], []);
+    expect(results).toHaveLength(2);
+    expect(results[0].line).toBe(3);
+    expect(results[1].line).toBe(12);
   });
 });
 
@@ -168,7 +241,7 @@ describe("truncateSnippet", () => {
   });
 
   it("centers the snippet around the match", () => {
-    const text = "a".repeat(50) + "MATCH" + "b".repeat(50);
+    const text = "a".repeat(80) + "MATCH" + "b".repeat(80);
     const result = truncateSnippet(text, "MATCH");
     expect(result).toContain("MATCH");
     expect(result.startsWith("...")).toBe(true);
@@ -186,6 +259,14 @@ describe("truncateSnippet", () => {
     const text = "x".repeat(200);
     const result = truncateSnippet(text, "notfound");
     expect(result.length).toBe(120);
+  });
+
+  it("does not add trailing ellipsis when match is near the end", () => {
+    const text = "x".repeat(100) + "MATCH";
+    const result = truncateSnippet(text, "MATCH");
+    expect(result.startsWith("...")).toBe(true);
+    expect(result.endsWith("...")).toBe(false);
+    expect(result).toContain("MATCH");
   });
 
   it("is case-insensitive", () => {

@@ -15,7 +15,7 @@ interface Props {
   onMarkViewed: (file: string) => void;
   isViewed: boolean;
   fileSummary?: string;
-  scrollToLine?: { line: number; side: string } | null;
+  scrollToLine?: { line: number; side: string; token?: number } | null;
 }
 
 interface DiffLine {

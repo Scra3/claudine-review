@@ -5,7 +5,7 @@ export interface SearchResult {
   type: "diff" | "comment";
   file: string;
   line: number;
-  side: string;
+  side: "old" | "new";
   snippet: string;
   commentId?: string;
 }
@@ -43,7 +43,7 @@ export function buildSearchResults(
     const bodies = [c.body, ...c.thread.map((t) => t.body)];
     for (const body of bodies) {
       if (body.toLowerCase().includes(q)) {
-        results.push({ type: "comment", file: c.file, line: c.line, side: "new", snippet: body, commentId: c.id });
+        results.push({ type: "comment", file: c.file, line: c.line, side: c.side, snippet: body, commentId: c.id });
       }
     }
   }
@@ -62,8 +62,9 @@ export function truncateSnippet(text: string, query: string, maxLen = 120): stri
   const idx = lower.indexOf(q);
   if (idx === -1) return text.slice(0, maxLen);
 
-  const start = Math.max(0, idx - 40);
-  const end = Math.min(text.length, idx + q.length + 40);
+  const pad = Math.max(0, Math.floor((maxLen - q.length) / 2));
+  const start = Math.max(0, idx - pad);
+  const end = Math.min(text.length, idx + q.length + pad);
   let snippet = text.slice(start, end).trim();
   if (start > 0) snippet = "..." + snippet;
   if (end < text.length) snippet = snippet + "...";
