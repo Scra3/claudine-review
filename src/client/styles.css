@@ -321,15 +321,39 @@ textarea {
 
 .file-list__comments {
   font-size: 11px;
+  font-family: var(--font-mono);
   color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.file-list__comments--done {
+  color: var(--green);
+}
+
+.file-list__item--viewed :is(.file-list__name-col, .file-list__changes) {
+  opacity: 0.5;
+}
+
+.file-list__item--selected :is(.file-list__name-col, .file-list__changes) {
+  opacity: 1;
+}
+
+.file-list__item--viewed:not(.file-list__item--selected):hover :is(.file-list__name-col, .file-list__changes) {
+  opacity: 0.8;
 }
 
 .file-list__footer {
+  display: flex;
+  justify-content: space-between;
   padding: 10px 12px;
   border-top: 1px solid var(--border);
   font-size: 12px;
   color: var(--text-muted);
-  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.file-list__footer-stat--done {
+  color: var(--green);
 }
 
 /* ── Diff View ───────────────────────────────────────────────── */

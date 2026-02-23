@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { useDiff } from "./hooks/useDiff";
 import { useComments } from "./hooks/useComments";
 import { ReviewHeader } from "./components/ReviewHeader";
@@ -24,6 +24,16 @@ export default function App() {
     replyToComment,
     removeComment,
   } = useComments(notifyDiffChanged);
+
+  const fileStats = useMemo(() => {
+    const map: Record<string, { total: number; resolved: number }> = {};
+    for (const c of serverComments) {
+      if (!map[c.file]) map[c.file] = { total: 0, resolved: 0 };
+      map[c.file].total += 1;
+      if (c.status === "resolved") map[c.file].resolved += 1;
+    }
+    return map;
+  }, [serverComments]);
 
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
@@ -138,7 +148,7 @@ export default function App() {
           files={diff.files}
           selectedFile={selectedFile}
           onSelectFile={setSelectedFile}
-          comments={serverComments}
+          fileStats={fileStats}
           viewedFiles={viewedFiles}
           filter={filter}
           onFilterChange={setFilter}
