@@ -1,11 +1,5 @@
-export interface SearchResult {
-  type: "diff" | "comment";
-  file: string;
-  line: number;
-  side: string;
-  snippet: string;
-  commentId?: string;
-}
+import type { SearchResult } from "../search";
+import { truncateSnippet } from "../search";
 
 interface Props {
   results: SearchResult[];
@@ -29,20 +23,6 @@ function highlightMatch(text: string, query: string) {
   }
   if (lastIdx < text.length) parts.push(text.slice(lastIdx));
   return <>{parts}</>;
-}
-
-function truncateSnippet(text: string, query: string, maxLen = 120): string {
-  const lower = text.toLowerCase();
-  const q = query.toLowerCase();
-  const idx = lower.indexOf(q);
-  if (idx === -1) return text.slice(0, maxLen);
-
-  const start = Math.max(0, idx - 40);
-  const end = Math.min(text.length, idx + q.length + 40);
-  let snippet = text.slice(start, end).trim();
-  if (start > 0) snippet = "..." + snippet;
-  if (end < text.length) snippet = snippet + "...";
-  return snippet;
 }
 
 export function SearchPanel({ results, query, onNavigate, onClose }: Props) {
