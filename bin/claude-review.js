@@ -36,7 +36,7 @@ for (let i = 0; i < args.length; i++) {
 
   Options:
     --init          Setup /apply-review command in current project
-    --ref <ref>     Git ref to diff (default: HEAD)
+    --ref <ref>     Git ref to diff (default: merge-base with main)
     --port <port>   Port to listen on (default: 3847)
     -h, --help      Show this help
 `);

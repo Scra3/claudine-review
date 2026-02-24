@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execSync } from "node:child_process";
-import { getDiff, getBranch, getFileContent } from "../src/server/git";
+import { getDiff, getBranch, getFileContent, getDefaultBranch, getMergeBase } from "../src/server/git";
 
 function createTempRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), "claude-review-git-test-"));
@@ -72,6 +72,67 @@ describe("git", () => {
       execSync(`git checkout ${sha}`, { cwd: repoDir, stdio: "ignore" });
       const branch = getBranch(repoDir);
       expect(branch).toBe("HEAD");
+    });
+  });
+
+  describe("getDefaultBranch", () => {
+    it("detects the default branch via origin remote", () => {
+      // Set up a bare "origin" so origin/main exists
+      const bareDir = mkdtempSync(join(tmpdir(), "claude-review-bare-"));
+      execSync("git clone --bare " + repoDir + " " + bareDir, { stdio: "ignore" });
+      execSync("git remote add origin " + bareDir, { cwd: repoDir, stdio: "ignore" });
+      execSync("git fetch origin", { cwd: repoDir, stdio: "ignore" });
+
+      const branch = getDefaultBranch(repoDir);
+      expect(branch).toMatch(/^(main|master)$/);
+      rmSync(bareDir, { recursive: true, force: true });
+    });
+
+    it("returns null when no origin remote exists", () => {
+      // Fresh repo with no remote — no origin/main or origin/master
+      const branch = getDefaultBranch(repoDir);
+      expect(branch).toBeNull();
+    });
+  });
+
+  describe("getMergeBase", () => {
+    it("returns SHA when on a feature branch diverged from default", () => {
+      // Set up a bare "origin" so origin/main exists
+      const bareDir = mkdtempSync(join(tmpdir(), "claude-review-bare-"));
+      execSync("git clone --bare " + repoDir + " " + bareDir, { stdio: "ignore" });
+      execSync("git remote add origin " + bareDir, { cwd: repoDir, stdio: "ignore" });
+      execSync("git fetch origin", { cwd: repoDir, stdio: "ignore" });
+
+      // Get the SHA of the initial commit (on main/master)
+      const initSha = execSync("git rev-parse HEAD", { cwd: repoDir, encoding: "utf-8" }).trim();
+
+      // Create a feature branch with a new commit
+      execSync("git checkout -b feature/test", { cwd: repoDir, stdio: "ignore" });
+      writeFileSync(join(repoDir, "feature.txt"), "feature work\n");
+      execSync("git add feature.txt", { cwd: repoDir, stdio: "ignore" });
+      execSync('git commit -m "feature commit"', { cwd: repoDir, stdio: "ignore" });
+
+      const mergeBase = getMergeBase(repoDir);
+      expect(mergeBase).toBe(initSha);
+      rmSync(bareDir, { recursive: true, force: true });
+    });
+
+    it("returns null when on the default branch itself", () => {
+      // Set up origin so detection works, but we stay on main
+      const bareDir = mkdtempSync(join(tmpdir(), "claude-review-bare-"));
+      execSync("git clone --bare " + repoDir + " " + bareDir, { stdio: "ignore" });
+      execSync("git remote add origin " + bareDir, { cwd: repoDir, stdio: "ignore" });
+      execSync("git fetch origin", { cwd: repoDir, stdio: "ignore" });
+
+      const mergeBase = getMergeBase(repoDir);
+      expect(mergeBase).toBeNull();
+      rmSync(bareDir, { recursive: true, force: true });
+    });
+
+    it("returns null when no default branch can be detected", () => {
+      // No remote at all
+      const mergeBase = getMergeBase(repoDir);
+      expect(mergeBase).toBeNull();
     });
   });
 
