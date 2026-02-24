@@ -8,7 +8,7 @@ import { handleApiRequest, type ApiContext } from "../src/server/api";
 import { ReviewStore } from "../src/server/store";
 
 function createTempRepo(): string {
-  const dir = mkdtempSync(join(tmpdir(), "claude-review-api-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "claudine-review-api-test-"));
   execSync("git init", { cwd: dir, stdio: "ignore" });
   execSync('git config user.email "test@test.com"', { cwd: dir, stdio: "ignore" });
   execSync('git config user.name "Test"', { cwd: dir, stdio: "ignore" });

@@ -113,7 +113,7 @@ export default function App() {
   // Set document title with project and branch
   useEffect(() => {
     if (diff?.project) {
-      document.title = `${diff.project} @ ${diff.branch} — claude-review`;
+      document.title = `${diff.project} @ ${diff.branch} — claudine-review`;
     }
   }, [diff?.project, diff?.branch]);
 

@@ -51,7 +51,7 @@ export function ReviewHeader({
   return (
     <header className="review-header">
       <div className="review-header__left">
-        <span className="review-header__logo">claude-review</span>
+        <span className="review-header__logo">claudine-review</span>
         {project && <span className="review-header__badge review-header__badge--project">{project}</span>}
         {branch && <span className="review-header__badge review-header__badge--branch">{branch}</span>}
         <span className="review-header__badge">Round {round}</span>

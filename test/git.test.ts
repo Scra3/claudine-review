@@ -6,7 +6,7 @@ import { execSync } from "node:child_process";
 import { getDiff, getBranch, getFileContent, getDefaultBranch, getMergeBase } from "../src/server/git";
 
 function createTempRepo(): string {
-  const dir = mkdtempSync(join(tmpdir(), "claude-review-git-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "claudine-review-git-test-"));
   execSync("git init", { cwd: dir, stdio: "ignore" });
   execSync('git config user.email "test@test.com"', { cwd: dir, stdio: "ignore" });
   execSync('git config user.name "Test"', { cwd: dir, stdio: "ignore" });
@@ -78,7 +78,7 @@ describe("git", () => {
   describe("getDefaultBranch", () => {
     it("detects the default branch via origin remote", () => {
       // Set up a bare "origin" so origin/main exists
-      const bareDir = mkdtempSync(join(tmpdir(), "claude-review-bare-"));
+      const bareDir = mkdtempSync(join(tmpdir(), "claudine-review-bare-"));
       execSync("git clone --bare " + repoDir + " " + bareDir, { stdio: "ignore" });
       execSync("git remote add origin " + bareDir, { cwd: repoDir, stdio: "ignore" });
       execSync("git fetch origin", { cwd: repoDir, stdio: "ignore" });
@@ -98,7 +98,7 @@ describe("git", () => {
   describe("getMergeBase", () => {
     it("returns SHA when on a feature branch diverged from default", () => {
       // Set up a bare "origin" so origin/main exists
-      const bareDir = mkdtempSync(join(tmpdir(), "claude-review-bare-"));
+      const bareDir = mkdtempSync(join(tmpdir(), "claudine-review-bare-"));
       execSync("git clone --bare " + repoDir + " " + bareDir, { stdio: "ignore" });
       execSync("git remote add origin " + bareDir, { cwd: repoDir, stdio: "ignore" });
       execSync("git fetch origin", { cwd: repoDir, stdio: "ignore" });
@@ -119,7 +119,7 @@ describe("git", () => {
 
     it("returns null when on the default branch itself", () => {
       // Set up origin so detection works, but we stay on main
-      const bareDir = mkdtempSync(join(tmpdir(), "claude-review-bare-"));
+      const bareDir = mkdtempSync(join(tmpdir(), "claudine-review-bare-"));
       execSync("git clone --bare " + repoDir + " " + bareDir, { stdio: "ignore" });
       execSync("git remote add origin " + bareDir, { cwd: repoDir, stdio: "ignore" });
       execSync("git fetch origin", { cwd: repoDir, stdio: "ignore" });

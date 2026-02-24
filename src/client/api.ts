@@ -8,7 +8,7 @@ import type {
 
 function getToken(): string {
   return (
-    sessionStorage.getItem("claude-review-token") ??
+    sessionStorage.getItem("claudine-review-token") ??
     new URLSearchParams(window.location.search).get("token") ??
     ""
   );
@@ -18,7 +18,7 @@ export function storeTokenFromUrl(): void {
   const params = new URLSearchParams(window.location.search);
   const token = params.get("token");
   if (token) {
-    sessionStorage.setItem("claude-review-token", token);
+    sessionStorage.setItem("claudine-review-token", token);
     history.replaceState(null, "", window.location.pathname);
   }
 }

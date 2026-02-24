@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [
     react(),
     {
-      name: "claude-review-api",
+      name: "claudine-review-api",
       configureServer(server) {
         let apiSetup: Promise<void> | null = null;
         let handler: typeof import("./src/server/api.js").handleApiRequest;
@@ -46,7 +46,7 @@ export default defineConfig({
                 token: config.token,
               };
 
-              console.log(`\n  claude-review API ready`);
+              console.log(`\n  claudine-review API ready`);
               console.log(`  Token: ${config.token}\n`);
             })();
           }

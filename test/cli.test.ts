@@ -6,7 +6,7 @@ import { execSync } from "node:child_process";
 import { getDiff } from "../src/server/git";
 
 function createTempRepo(): string {
-  const dir = mkdtempSync(join(tmpdir(), "claude-review-cli-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "claudine-review-cli-test-"));
   execSync("git init", { cwd: dir, stdio: "ignore" });
   execSync('git config user.email "test@test.com"', { cwd: dir, stdio: "ignore" });
   execSync('git config user.name "Test"', { cwd: dir, stdio: "ignore" });
@@ -19,7 +19,7 @@ describe("CLI", () => {
   describe("port validation", () => {
     it("rejects non-numeric port", () => {
       const result = execSync(
-        `node bin/claude-review.js --port abc 2>&1 || true`,
+        `node bin/claudine-review.js --port abc 2>&1 || true`,
         { encoding: "utf-8" },
       );
       expect(result).toContain("invalid port");
@@ -27,7 +27,7 @@ describe("CLI", () => {
 
     it("rejects port above 65535", () => {
       const result = execSync(
-        `node bin/claude-review.js --port 99999 2>&1 || true`,
+        `node bin/claudine-review.js --port 99999 2>&1 || true`,
         { encoding: "utf-8" },
       );
       expect(result).toContain("invalid port");
@@ -35,7 +35,7 @@ describe("CLI", () => {
 
     it("rejects port 0", () => {
       const result = execSync(
-        `node bin/claude-review.js --port 0 2>&1 || true`,
+        `node bin/claudine-review.js --port 0 2>&1 || true`,
         { encoding: "utf-8" },
       );
       expect(result).toContain("invalid port");

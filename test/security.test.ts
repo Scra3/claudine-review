@@ -6,7 +6,7 @@ import { execSync } from "node:child_process";
 import { getFileContent } from "../src/server/git";
 
 function createTempRepo(): string {
-  const dir = mkdtempSync(join(tmpdir(), "claude-review-sec-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "claudine-review-sec-test-"));
   execSync("git init", { cwd: dir, stdio: "ignore" });
   execSync('git config user.email "test@test.com"', { cwd: dir, stdio: "ignore" });
   execSync('git config user.name "Test"', { cwd: dir, stdio: "ignore" });

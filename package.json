@@ -1,10 +1,10 @@
 {
-  "name": "claude-review",
+  "name": "claudine-review",
   "version": "0.1.0",
   "description": "Local code review tool for Claude Code — review diffs, comment inline, iterate",
   "type": "module",
   "bin": {
-    "claude-review": "./bin/claude-review.js"
+    "claudine-review": "./bin/claudine-review.js"
   },
   "scripts": {
     "dev": "vite",

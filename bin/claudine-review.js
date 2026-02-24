@@ -26,13 +26,13 @@ for (let i = 0; i < args.length; i++) {
     }
   } else if (args[i] === "--help" || args[i] === "-h") {
     console.log(`
-  claude-review — Local code review for Claude Code
+  claudine-review — Local code review for Claude Code
 
   Usage:
-    claude-review                    # review current changes
-    claude-review --init             # setup project for claude-review
-    claude-review --ref main..HEAD   # specific ref
-    claude-review --port 4000        # custom port
+    claudine-review                    # review current changes
+    claudine-review --init             # setup project for claudine-review
+    claudine-review --ref main..HEAD   # specific ref
+    claudine-review --port 4000        # custom port
 
   Options:
     --init          Setup /apply-review command in current project
@@ -64,10 +64,10 @@ function init() {
     : "  Created .claude/commands/apply-review.md\n"
   );
 
-  console.log(`  Setup complete! Here's how to use claude-review:
+  console.log(`  Setup complete! Here's how to use claudine-review:
 
   1. Make some changes in your repo
-  2. Run:  claude-review
+  2. Run:  claudine-review
   3. Review the diff in the browser, add comments, click "Submit Review"
   4. In Claude Code, run:  /apply-review
   5. Claude reads your comments, applies fixes or answers questions

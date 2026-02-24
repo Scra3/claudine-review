@@ -103,7 +103,7 @@ export async function startServer(opts: {
   return new Promise((resolve) => {
     server.listen(config.port, "127.0.0.1", () => {
       const url = `http://127.0.0.1:${config.port}?token=${config.token}`;
-      console.log(`\n  claude-review running at:`);
+      console.log(`\n  claudine-review running at:`);
       console.log(`  ${url}\n`);
       console.log(`  Review file: ${store.getFilePath()}`);
       console.log(`  Ref: ${config.ref}`);
