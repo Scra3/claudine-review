@@ -15,7 +15,8 @@ For each comment with status "pending":
 5. Update the comment in .claude/review.json:
    - Append your response to the `thread` array: `{ "author": "ai", "body": "your response", "createdAt": "ISO timestamp" }`
    - If this is the first AI response and there is no `thread` yet, create the array
-   - Do NOT set status to "resolved" — only the reviewer can resolve a thread
+   - If you made a concrete, verifiable change that fully addresses the comment (rename, fix, delete, add type, etc.), set `status` to `"resolved"` and `resolvedAt` to the current ISO timestamp. The reviewer can always reopen if they disagree.
+   - If the comment is subjective, ambiguous, or you're unsure your fix is complete, keep `status` as `"pending"` and let the reviewer decide.
    - Do NOT use a top-level `response` field — all responses go in the thread
    - Remove the `response` and `resolvedAt` fields if they exist (legacy format)
 
@@ -70,6 +71,6 @@ IMPORTANT: Write the summary into the existing .claude/review.json by updating t
 ## UX rules
 
 - `status: "pending"` = the AI must respond (ball is in AI's court)
-- `status: "resolved"` = conversation is closed (only the reviewer sets this)
+- `status: "resolved"` = conversation is closed (the AI can resolve when the fix is concrete and verifiable; the reviewer can always reopen)
 - The reviewer replies by adding `{ "author": "user", "body": "..." }` to the thread and setting status back to `"pending"`
-- The AI never resolves a thread on its own
+- The AI resolves a thread when it has made a clear, factual fix (rename, deletion, type addition, bug fix with obvious correctness). It does NOT resolve subjective or ambiguous threads (architecture questions, style preferences, "consider refactoring").
