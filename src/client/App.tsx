@@ -9,6 +9,7 @@ import { FileList } from "./components/FileList";
 import { DiffView } from "./components/DiffView";
 import { getFileName } from "./utils";
 import { loadSidebarWidth, saveSidebarWidth, clampSidebarWidth, SIDEBAR_MIN } from "./sidebar";
+import { loadTheme, saveTheme, applyTheme, type Theme } from "./theme";
 import { storeTokenFromUrl } from "./api";
 import "./styles.css";
 
@@ -37,6 +38,15 @@ export default function App() {
     }
     return map;
   }, [serverComments]);
+
+  const [theme, setTheme] = useState<Theme>(loadTheme);
+
+  const handleToggleTheme = useCallback(() => {
+    const next: Theme = theme === "dark" ? "light" : "dark";
+    applyTheme(next);
+    saveTheme(next);
+    setTheme(next);
+  }, [theme]);
 
   const [sidebarWidth, setSidebarWidth] = useState(loadSidebarWidth);
   const [resizing, setResizing] = useState(false);
@@ -207,6 +217,8 @@ export default function App() {
         totalDeletions={diff.totalDeletions}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
       />
       {diffChanged && (
         <div className="diff-changed-banner">
